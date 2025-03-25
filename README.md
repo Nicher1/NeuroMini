@@ -16,3 +16,11 @@ And three different maps
 ```
 You should remove **_--live_plot_** otherwise the speed will be impacted by the animation function.
 
+### RRT
+![rrt](https://github.com/user-attachments/assets/87ff81af-5170-42ed-9220-4958365646e0)
+
+### RRT*
+![rrt_star](https://github.com/user-attachments/assets/c5d4883a-0271-4c5a-b31a-70620f57a707)
+
+
+
