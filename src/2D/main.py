@@ -26,7 +26,7 @@ if __name__ == "__main__":
     start_positions = [[5 + i * 5, 5] for i in range(args.num_agents)]
     goal_positions = [[args.map_size[0] - 10, args.map_size[1] - 10] for i in range(args.num_agents)]
 
-    cmn_rrt_star = RRTStar(
+    cmn_rrt_star = RRT(
         start_positions,
         goal_positions,
         args.num_agents,

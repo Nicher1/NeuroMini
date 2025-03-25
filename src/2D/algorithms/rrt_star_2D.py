@@ -56,7 +56,9 @@ class RRTStar:
         self.fig, self.ax = plt.subplots()
         setup_visualization(self.ax, self.agents, self.goals, self.map_size, self.obstacle_type, self.obstacles)
             
-
+    # This function gets creates a random node anywhere on the map
+    # The idea is to try to move towards that node and explore.
+    # This is part of the random exploration part
     def get_weighted_random_node(self, agent_id):
         goal = self.goals[agent_id]
         if random.random() < 0.2:
@@ -69,6 +71,8 @@ class RRTStar:
                 y = (y + goal.y) / 2
             return Node(x, y)
     
+    # This function get the nearest node to the random node
+    # previously generated. 
     def get_nearest_node(self, tree, rand_node):
         points = np.array([[node.x, node.y] for node in tree])
         tree_kdtree = scipy.spatial.KDTree(points)
@@ -96,9 +100,16 @@ class RRTStar:
                 new_node = self.steer(nearest_node, rand_node)
 
                 if self.is_collision_free(nearest_node, new_node):
+                    near_nodes = self.find_near_nodes(self.trees[agent_id], new_node)
+                    new_node = self.choose_parent(near_nodes, new_node)
                     self.trees[agent_id].append(new_node)
-                    new_node.parent = nearest_node
-                    self.draw_tree(new_node)
+                    self.rewire(self.trees[agent_id], near_nodes, new_node)
+                    draw_tree(self.ax, new_node, live_plot=self.live_plot)
+
+                    if self.reached_goal(new_node, self.goals[agent_id]):
+                        self.paths[agent_id] = self.generate_final_path(new_node)
+                        self.goal_reached[agent_id] = True
+                        draw_path(self.ax, self.paths, agent_id)
 
                     if self.reached_goal(new_node, self.goals[agent_id]):
                         self.paths[agent_id] = self.generate_final_path(new_node)
@@ -172,13 +183,41 @@ class RRTStar:
             node = node.parent
         return path[::-1]
     
-    def draw_tree(self, node):
-        if node.parent:
-            self.ax.plot([node.x, node.parent.x], [node.y, node.parent.y], "-b")
-            if self.live_plot:
-                plt.pause(0.01)
+    def find_near_nodes(self, tree, new_node, radius=10.0):
+        near_nodes = []
+        for node in tree:
+            dist = math.hypot(node.x - new_node.x, node.y - new_node.y)
+            if dist <= radius:
+                near_nodes.append(node)
+        return near_nodes
     
- 
+    def choose_parent(self, near_nodes, new_node):
+        best_parent = None
+        best_cost = float('inf')
+
+        for node in near_nodes:
+            temp_node = self.steer(node, new_node)
+            if self.is_collision_free(node, temp_node):
+                cost = node.cost + self.distance(node, temp_node)
+                if cost < best_cost:
+                    best_parent = node
+                    best_cost = cost
+
+        if best_parent:
+            new_node.parent = best_parent
+            new_node.cost = best_cost
+        return new_node
+    
+    def distance(self, node1, node2):
+        return math.hypot(node1.x - node2.x, node1.y - node2.y)
+
+    def rewire(self, tree, near_nodes, new_node):
+        for node in near_nodes:
+            new_cost = new_node.cost + self.distance(new_node, node)
+            if new_cost < node.cost and self.is_collision_free(new_node, node):
+                node.parent = new_node
+                node.cost = new_cost
+
     def animate(self):
         plt.show()
     
