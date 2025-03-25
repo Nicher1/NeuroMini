@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +8,9 @@ import random
 import argparse
 import time
 
+from utils.generator import generate_map
+from utils.plotter import *
+
 # Node class representing a state in the space
 class Node:
     def __init__(self, x, y):
@@ -18,13 +20,13 @@ class Node:
         self.cost = 0
 
 # Multi-Agent RRT* (CMN-RRT*)
-class CMN_RRTStar:
+class RRT:
     def __init__(self, start_positions, goal_positions, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
         
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        self.obstacles = self.generate_map()
+        self.obstacles = generate_map(map_type, map_size)
         self.obstacle_type = "wall"
         self.goal_region_radius = 4
         
@@ -53,91 +55,7 @@ class CMN_RRTStar:
         # Visualization setup
         self.live_plot = live_plot
         self.fig, self.ax = plt.subplots()
-        self.setup_visualization()
-
-    def generate_diagonal_wall(self):
-        wall_thickness = 7  # how wide the wall is (perpendicular to the diagonal)
-        block_size = 2      # how long each rectangle is along the diagonal
-        obstacles = []
-
-        gap_top_y = self.map_size[1] - 10
-        gap_bottom_y = 10
-
-        for i in range(0, int(math.hypot(*self.map_size)), block_size):
-            # Calculate point along diagonal from (0, height) to (width, 0)
-            t = i / math.hypot(*self.map_size)
-            x = t * self.map_size[0]
-            y = self.map_size[1] - t * self.map_size[1]
-
-            # Skip if inside top or bottom gap
-            if y > gap_top_y or y < gap_bottom_y:
-                continue
-
-            # Rectangle axis-aligned centered at (x, y)
-            rect_x = x - block_size / 2
-            rect_y = y - wall_thickness / 2
-            obstacles.append((rect_x, rect_y, block_size, wall_thickness))
-
-        return obstacles
-    
-    def generate_labyrinth_maze(self, wall_size=3, cell_size=20):
-        width, height = self.map_size[0] // cell_size, self.map_size[1] // cell_size
-        maze = [[False] * width for _ in range(height)]  # visited cells
-        walls = []
-
-        def visit(x, y):
-            maze[y][x] = True
-            directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-            random.shuffle(directions)
-
-            for dx, dy in directions:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < height and not maze[ny][nx]:
-                    # Remove wall between (x,y) and (nx,ny)
-                    if dx == 1:
-                        wx = (x + 1) * cell_size
-                        wy = y * cell_size
-                        walls_to_remove.add((wx, wy, wall_size, cell_size))
-                    elif dx == -1:
-                        wx = x * cell_size
-                        wy = y * cell_size
-                        walls_to_remove.add((wx, wy, wall_size, cell_size))
-                    elif dy == 1:
-                        wx = x * cell_size
-                        wy = (y + 1) * cell_size
-                        walls_to_remove.add((wx, wy, cell_size, wall_size))
-                    elif dy == -1:
-                        wx = x * cell_size
-                        wy = y * cell_size
-                        walls_to_remove.add((wx, wy, cell_size, wall_size))
-
-                    visit(nx, ny)
-
-        # Step 1: generate all walls between cells
-        walls_to_remove = set()
-        for y in range(height):
-            for x in range(width):
-                if x < width - 1:
-                    walls.append((x * cell_size + cell_size, y * cell_size, wall_size, cell_size))  # vertical
-                if y < height - 1:
-                    walls.append((x * cell_size, y * cell_size + cell_size, cell_size, wall_size))  # horizontal
-
-        # Step 2: carve a perfect maze
-        visit(0, 0)
-
-        # Step 3: remove carved wall segments from wall list
-        final_walls = [w for w in walls if w not in walls_to_remove]
-
-        return final_walls
-
-    
-    def generate_map(self):
-        if self.map_type == "labyrinth":
-            return self.generate_labyrinth_maze()
-        elif self.map_type == "diagonal":
-            return self.generate_diagonal_wall()
-        elif self.map_type == "empty":
-            return []
+        setup_visualization(self.ax, self.agents, self.goals, self.map_size, self.obstacle_type, self.obstacles)
             
 
     def get_weighted_random_node(self, agent_id):
@@ -158,30 +76,6 @@ class CMN_RRTStar:
         _, index = tree_kdtree.query([rand_node.x, rand_node.y])
         return tree[index]
     
-    def setup_visualization(self):
-        self.ax.set_xlim(0, self.map_size[0])
-        self.ax.set_ylim(0, self.map_size[1])
-        self.ax.grid(True)
-
-        for i in range(self.num_agents):
-            self.ax.plot(self.agents[i].x, self.agents[i].y, 'bo', label=f'Start {i+1}')
-            self.ax.plot(self.goals[i].x, self.goals[i].y, 'ro', label=f'Goal {i+1}')
-        
-        if self.obstacle_type == "wall":
-            self.draw_rectangle_obstacles()
-        else:
-            self.draw_circle_obstacles()
-
-    def draw_circle_obstacles(self):
-        for (ox, oy, size) in self.obstacles:
-            circle = plt.Circle((ox, oy), size, color='gray')
-            self.ax.add_artist(circle)
-
-    def draw_rectangle_obstacles(self):
-        for (x, y, w, h) in self.obstacles:
-            rect = plt.Rectangle((x, y), w, h, color='gray', alpha=0.7)
-            self.ax.add_patch(rect)
-
     def compute_path_length(self, path):
         length = 0.0
         for i in range(1, len(path)):
@@ -219,7 +113,9 @@ class CMN_RRTStar:
                         self.agents_results[agent_id]["path_length"] = path_len
                         self.agents_results[agent_id]["time"] = duration
 
-                        self.draw_path(agent_id)
+                        draw_path(self.ax, self.paths, agent_id)
+
+
         print("\n--- Agent Results ---")
         for agent_id, result in self.agents_results.items():
             print(f"Agent {agent_id}:")
@@ -283,10 +179,7 @@ class CMN_RRTStar:
             if self.live_plot:
                 plt.pause(0.01)
     
-    def draw_path(self, agent_id):
-        if self.paths[agent_id]:
-            self.ax.plot([x[0] for x in self.paths[agent_id]], [x[1] for x in self.paths[agent_id]], '-g', label=f'Path {agent_id+1}')
-    
+ 
     def animate(self):
         plt.show()
     
@@ -314,7 +207,7 @@ if __name__ == "__main__":
     start_positions = [[5 + i * 5, 5] for i in range(args.num_agents)]
     goal_positions = [[args.map_size[0] - 10, args.map_size[1] - 10] for i in range(args.num_agents)]
 
-    cmn_rrt_star = CMN_RRTStar(
+    cmn_rrt_star = RRT(
         start_positions,
         goal_positions,
         args.num_agents,
