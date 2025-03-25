@@ -11,5 +11,7 @@
 # 1. empty
 # 2. diagonal
 # 3. labyrinth
-./main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt
+./main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt --live_plot
+
+# You should remove --live_plot otherwise the speed will be impacted by the animation function.
 ```
