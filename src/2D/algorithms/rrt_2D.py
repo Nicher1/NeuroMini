@@ -21,7 +21,7 @@ class Node:
 
 # Multi-Agent RRT* (CMN-RRT*)
 class RRT:
-    def __init__(self, start_positions, goal_positions, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
+    def __init__(self, start_position, goal_position, num_agents, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
         
         # Map properties
         self.map_size = map_size
@@ -29,6 +29,9 @@ class RRT:
         self.obstacles = generate_map(map_type, map_size)
         self.obstacle_type = "wall"
         self.goal_region_radius = 4
+
+        self.start_node = Node(start_position[0], start_position[1])
+        self.goal_node = Node(goal_position[0], goal_position[1])
         
         # Algorithm properties
         self.step_size = step_size
@@ -36,9 +39,8 @@ class RRT:
         self.search_radius = 4.0
         
         # Initialise agents
+        self.agents = [self.start_node]
         self.num_agents = num_agents
-        self.agents = [Node(start_positions[i][0], start_positions[i][1]) for i in range(num_agents)]
-        self.goals = [Node(goal_positions[i][0], goal_positions[i][1]) for i in range(num_agents)]
         self.trees = [[self.agents[i]] for i in range(num_agents)]
         self.paths = [None] * num_agents
         self.goal_reached = [False] * num_agents
@@ -55,19 +57,19 @@ class RRT:
         # Visualization setup
         self.live_plot = live_plot
         self.fig, self.ax = plt.subplots()
-        setup_visualization(self.ax, self.agents, self.goals, self.map_size, self.obstacle_type, self.obstacles)
+        setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
             
 
     def get_weighted_random_node(self, agent_id):
-        goal = self.goals[agent_id]
+
         if random.random() < 0.2:
-            return Node(goal.x, goal.y)
+            return Node(self.goal_node.x, self.goal_node.y)
         else:
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
             if random.random() < 0.7:
-                x = (x + goal.x) / 2
-                y = (y + goal.y) / 2
+                x = (x + self.goal_node.x) / 2
+                y = (y + self.goal_node.y) / 2
             return Node(x, y)
     
     def get_nearest_node(self, tree, rand_node):
@@ -99,9 +101,9 @@ class RRT:
                 if self.is_collision_free(nearest_node, new_node):
                     self.trees[agent_id].append(new_node)
                     new_node.parent = nearest_node
-                    self.draw_tree(new_node)
+                    draw_tree(self.ax, new_node, live_plot=self.live_plot)
 
-                    if self.reached_goal(new_node, self.goals[agent_id]):
+                    if self.reached_goal(new_node, self.goal_node):
                         self.paths[agent_id] = self.generate_final_path(new_node)
                         self.goal_reached[agent_id] = True
 
@@ -173,52 +175,7 @@ class RRT:
             node = node.parent
         return path[::-1]
     
-    def draw_tree(self, node):
-        if node.parent:
-            self.ax.plot([node.x, node.parent.x], [node.y, node.parent.y], "-b")
-            if self.live_plot:
-                plt.pause(0.01)
-    
- 
+
     def animate(self):
         plt.show()
-    
-# Execution
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run CMN-RRT* path planner (2D)")
-
-    parser.add_argument("--num_agents", type=int, default=1,
-                        help="Number of agents to plan paths for")
-    parser.add_argument("--num_obstacles", type=int, default=15,
-                        help="Number of wall segments (ignored if using fixed wall layout)")
-    parser.add_argument("--map_size", nargs=2, type=int, default=[200, 200],
-                        help="Map size as width height")
-    parser.add_argument("--step_size", type=float, default=1.0,
-                        help="Step size for each tree expansion")
-    parser.add_argument("--live_plot", action="store_true",
-                    help="Enable live tree drawing during planning")
-    parser.add_argument("--map_type", choices=["empty", "diagonal", "labyrinth"], default="empty",
-                    help="Choose the type of map layout")
-
-    args = parser.parse_args()
-
-    # Auto-generate start/goal positions (evenly spaced)
-    start_positions = [[5 + i * 5, 5] for i in range(args.num_agents)]
-    goal_positions = [[args.map_size[0] - 10, args.map_size[1] - 10] for i in range(args.num_agents)]
-
-    cmn_rrt_star = RRT(
-        start_positions,
-        goal_positions,
-        args.num_agents,
-        args.num_obstacles,
-        args.map_size,
-        step_size=args.step_size,
-        max_iter=10000,
-        live_plot=args.live_plot,
-        map_type=args.map_type
-    )
-
-
-    cmn_rrt_star.plan()
-    cmn_rrt_star.animate()
+  

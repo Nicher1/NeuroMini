@@ -20,7 +20,7 @@ class Node:
 
 # Multi-Agent RRT* (CMN-RRT*)
 class RRTStar:
-    def __init__(self, start_positions, goal_positions, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
+    def __init__(self, start_position, goal_position, num_agents, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
         
         # Map properties
         self.map_size = map_size
@@ -28,6 +28,9 @@ class RRTStar:
         self.obstacles = generate_map(map_type, map_size)
         self.obstacle_type = "wall"
         self.goal_region_radius = 4
+
+        self.start_node = Node(start_position[0], start_position[1])
+        self.goal_node = Node(goal_position[0], goal_position[1])
         
         # Algorithm properties
         self.step_size = step_size
@@ -35,9 +38,8 @@ class RRTStar:
         self.search_radius = 4.0
         
         # Initialise agents
+        self.agents = [self.start_node]
         self.num_agents = num_agents
-        self.agents = [Node(start_positions[i][0], start_positions[i][1]) for i in range(num_agents)]
-        self.goals = [Node(goal_positions[i][0], goal_positions[i][1]) for i in range(num_agents)]
         self.trees = [[self.agents[i]] for i in range(num_agents)]
         self.paths = [None] * num_agents
         self.goal_reached = [False] * num_agents
@@ -54,21 +56,20 @@ class RRTStar:
         # Visualization setup
         self.live_plot = live_plot
         self.fig, self.ax = plt.subplots()
-        setup_visualization(self.ax, self.agents, self.goals, self.map_size, self.obstacle_type, self.obstacles)
+        setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
             
     # This function gets creates a random node anywhere on the map
     # The idea is to try to move towards that node and explore.
     # This is part of the random exploration part
     def get_weighted_random_node(self, agent_id):
-        goal = self.goals[agent_id]
         if random.random() < 0.2:
-            return Node(goal.x, goal.y)
+            return Node(self.goal_node.x, self.goal_node.y)
         else:
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
             if random.random() < 0.7:
-                x = (x + goal.x) / 2
-                y = (y + goal.y) / 2
+                x = (x + self.goal_node.x) / 2
+                y = (y + self.goal_node.y) / 2
             return Node(x, y)
     
     # This function get the nearest node to the random node
@@ -106,12 +107,12 @@ class RRTStar:
                     self.rewire(self.trees[agent_id], near_nodes, new_node)
                     draw_tree(self.ax, new_node, live_plot=self.live_plot)
 
-                    if self.reached_goal(new_node, self.goals[agent_id]):
+                    if self.reached_goal(new_node, self.goal_node):
                         self.paths[agent_id] = self.generate_final_path(new_node)
                         self.goal_reached[agent_id] = True
                         draw_path(self.ax, self.paths, agent_id)
 
-                    if self.reached_goal(new_node, self.goals[agent_id]):
+                    if self.reached_goal(new_node, self.goal_node):
                         self.paths[agent_id] = self.generate_final_path(new_node)
                         self.goal_reached[agent_id] = True
 
