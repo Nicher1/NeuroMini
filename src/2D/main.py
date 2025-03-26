@@ -3,7 +3,7 @@
 import argparse
 from algorithms.rrt_2D import RRT
 from algorithms.rrt_star_2D import RRTStar
-from algorithms.rrt_star_cmn_2D import CMNRRTStar
+from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStarV2
 
 def main():
     parser = argparse.ArgumentParser(description="Different implementations of RRT Algorithms")
@@ -26,6 +26,7 @@ def main():
 
     start_positions = [10, 10]
     goal_positions = [args.map_size[0] - 10, args.map_size[1] - 10]
+    print(f"# ------- Running {args.algorithm.upper()} ------- #")
 
     # Algorithm selection
     if args.algorithm == "rrt":
@@ -53,7 +54,7 @@ def main():
         )
 
     elif args.algorithm == "cmn_rrt_star":
-        planner = CMNRRTStar(
+        planner = CMNRRTStarV2(
         start_positions,
         goal_positions,
         args.num_agents,
