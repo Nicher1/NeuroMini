@@ -12,7 +12,8 @@ from utils.plotter import *
 
 # Node class representing a state in the space
 class Node:
-    def __init__(self, x, y):
+    def __init__(self, id, x, y):
+        self.id = id
         self.x = x
         self.y = y
         self.parent = None
@@ -29,8 +30,10 @@ class CMNRRTStar:
         self.obstacle_type = "wall"
         self.goal_region_radius = 4
 
-        self.start_node = Node(start_position[0], start_position[1])
-        self.goal_node = Node(goal_position[0], goal_position[1])
+        self.start_node = Node("start", start_position[0], start_position[1])
+        self.goal_node = Node("goal", goal_position[0], goal_position[1])
+
+
         
         # Algorithm variables
         self.step_size = step_size
@@ -40,14 +43,16 @@ class CMNRRTStar:
         # Initialise agents
         self.agents = [self.start_node]
         self.num_agents = num_agents
+        
+        # Agent generation variables
+        self.cost_threshold = (self.map_size[0] + self.map_size[1]) / 10
+        self.agent_node_radius = 20 # Helps checking collisions for agent placement
+
         self.generate_agents()
 
-        self.trees = [[self.agents[i]] for i in range(num_agents)]
-        self.paths = [None] * num_agents
-        self.goal_reached = [False] * num_agents
-
-        # Agent generation variables
-        self.cost_threshold = (self.map_size[0] + self.map_size[1]) / 5
+        self.trees = [[self.agents[i]] for i in range(self.num_agents)]
+        self.paths = [None] * self.num_agents
+        self.goal_reached = [False] * self.num_agents
 
         # Results per agent
         self.agents_results = {
@@ -55,7 +60,7 @@ class CMNRRTStar:
                 "iterations": 0,
                 "path_length": 0.0,
                 "time": 0.0
-            } for i in range(num_agents)
+            } for i in range(self.num_agents)
         }
 
         # Visualization setup
@@ -64,6 +69,11 @@ class CMNRRTStar:
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
 
 
+    # This function generates self.num_agents. These agents are actually
+    # initial nodes for CMN_RRT. If the node can't be placed due to collision
+    # the function will try to find another random position
+    # A distance is calculated between the node and the starting node and goal node
+    # and based on this the node is gonna be used or not
     def generate_agents(self):
 
         for i in range(0, self.num_agents - 1):
@@ -74,27 +84,52 @@ class CMNRRTStar:
             while not self.is_agent_collision_free(x, y):
                 x = random.uniform(0, self.map_size[0])
                 y = random.uniform(0, self.map_size[1])
-            new_node = Node(x, y)
 
-            self.agents.append(new_node)
-            
+            initial_agent_node = Node("agent_" + str(i), x, y)
+            if self.check_cost_of_agent(initial_agent_node):
+                
+                self.agents.append(initial_agent_node)
+            else:
+                # Remove unworthy agent from the list
+                self.num_agents -= 1
+        print(f"# ------- Based on the distance only {self.num_agents} are useful.")
+
     # TODO: need to implement collision with walls for agent initial placement  
+    # This function checks if a node is collision free. That means no collision with
+    # any obstacle or any other initial nodes
     def is_agent_collision_free(self, x, y):
+
+        # Checking if nodes collide with any walls
         for obstacle in self.obstacles: 
-            pass
+            x_min, y_min, width, height = obstacle
+            
+            if (x_min <= x <= x_min + width and y_min <= y <= y_min + height):
+                print(f"# ------- Agent {x} {y} collides with walls")
+                return False
+        
+        # Checking if nodes overlap - trying to have them as sparse as possible
+        for other_agent in self.agents:
+            cx = other_agent.x
+            cy = other_agent.y
+            if (x - cx) ** 2 + (x - cy) ** 2  <= self.agent_node_radius ** 2:
+                print(f"# ------- Agent at {x} {y} collides with {other_agent.id}")
+                return False
 
         return True
     
-    # TODO: need to implement the cost function to choose the agents
     # This function check the cost based on the distance from the agent
     # to the line between initial node and goal node 
-    def check_cost_of_agent(self, agent):
+    def check_cost_of_agent(self, agent_node):
+        x0, y0 = agent_node.x, agent_node.y
+        x1, y1 = self.start_node.x, self.start_node.y
+        x2, y2 = self.goal_node.x, self.goal_node.y
+        
+        distance = abs((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1))
+        distance = distance / math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-        self.start_node
-        x = agent[0]
-        y = agent[1]
-
-
+        if distance >= self.cost_threshold:
+            return False
+        return True
         pass
 
 
@@ -103,14 +138,14 @@ class CMNRRTStar:
     # This is part of the random exploration part
     def get_weighted_random_node(self):
         if random.random() < 0.2:
-            return Node(self.goal_node.x, self.goal_node.y)
+            return Node("node", self.goal_node.x, self.goal_node.y)
         else:
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
             if random.random() < 0.7:
                 x = (x + self.goal_node.x) / 2
                 y = (y + self.goal_node.y) / 2
-            return Node(x, y)
+            return Node("node", x, y)
     
     # This function get the nearest node to the random node
     # previously generated. 
@@ -177,7 +212,7 @@ class CMNRRTStar:
     
     def steer(self, from_node, to_node):
         theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
-        new_node = Node(from_node.x + self.step_size * math.cos(theta),
+        new_node = Node("node", from_node.x + self.step_size * math.cos(theta),
                         from_node.y + self.step_size * math.sin(theta))
         new_node.parent = from_node
         return new_node
