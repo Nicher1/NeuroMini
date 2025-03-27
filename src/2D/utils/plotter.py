@@ -1,22 +1,32 @@
-
-
-
-
 import matplotlib.pyplot as plt
 
-def setup_visualization(ax, agents, goals, map_size, obstacle_type, obstacles):
+
+AGENT_COLORS = [
+    'orange', 'green', 'purple', 'cyan',
+    'pink', 'lime', 'magenta', 'brown', 'teal', 'navy',
+    'gold', 'olive', 'salmon', 'turquoise', 'gray', 'black'
+]
+
+
+
+def setup_visualization(ax, agents, goal, map_size, obstacle_type, obstacles):
     ax.set_xlim(0, map_size[0])
     ax.set_ylim(0, map_size[1])
     ax.grid(True)
 
+    
     for i, agent in enumerate(agents):
-        ax.plot(agent.x, agent.y, 'bo', label=f'Start {i+1}')
-        ax.plot(goals[i].x, goals[i].y, 'ro', label=f'Goal {i+1}')
+        
+        
+        ax.plot(agent.initial_node.x, agent.initial_node.y, 'o', color=agent.color, label=f'Start {i+1}')
+    ax.plot(goal.x, goal.y, 'ro', label=f'Goal {i+1}')
     
     if obstacle_type == "wall":
         draw_rectangle_obstacles(ax, obstacles)
     else:
         draw_circle_obstacles(ax, obstacles)
+
+    ax.legend(loc='upper left', fontsize=12)
 
 def draw_circle_obstacles(ax, obstacles):
     for (ox, oy, size) in obstacles:
@@ -28,12 +38,25 @@ def draw_rectangle_obstacles(ax, obstacles):
         rect = plt.Rectangle((x, y), w, h, color='gray', alpha=0.7)
         ax.add_patch(rect)
 
-def draw_tree(ax, node, live_plot=False):
+def draw_tree(ax, node, color='b', live_plot=False, label=None):
     if node.parent:
-        ax.plot([node.x, node.parent.x], [node.y, node.parent.y], "-b")
+        ax.plot(
+            [node.x, node.parent.x],
+            [node.y, node.parent.y],
+            color=color,
+            linewidth=2,
+            label=label
+        )
         if live_plot:
             plt.pause(0.01)
 
-def draw_path(ax, paths, agent_id):
-    if paths[agent_id]:
-        ax.plot([x[0] for x in paths[agent_id]], [x[1] for x in paths[agent_id]], '-g', label=f'Path {agent_id+1}')
+def draw_path(ax, path, color='green', linewidth=3, linestyle='-', label=None):
+    if path:
+        ax.plot(
+            [x[0] for x in path],
+            [x[1] for x in path],
+            linestyle,
+            color=color,
+            linewidth=linewidth,
+            label=label
+        )
