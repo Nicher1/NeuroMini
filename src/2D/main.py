@@ -19,8 +19,12 @@ def main():
                         help="Step size for each tree expansion")
     parser.add_argument("--live_plot", action="store_true",
                         help="Enable live tree drawing during planning")
-    parser.add_argument("--map_type", choices=["empty", "diagonal", "labyrinth"], default="empty",
+    parser.add_argument("--map_type", choices=["empty", "diagonal", "labyrinth", "rectangles", "random_polygons"], default="empty",
                         help="Choose the type of map layout")
+    parser.add_argument("--num_obstacles", type=int, default=10,
+                    help="Number of obstacles (used for random maps)")
+    parser.add_argument("--debug", action="store_true", default=False,
+                        help="Enable debug")
 
     args = parser.parse_args()
 
@@ -33,6 +37,7 @@ def main():
         planner = RRT(
         start_positions,
         goal_positions,
+        args.num_obstacles,
         args.num_agents,
         args.map_size,
         step_size=args.step_size,
@@ -45,6 +50,7 @@ def main():
         planner = RRTStar(
         start_positions,
         goal_positions,
+        args.num_obstacles,
         args.num_agents,
         args.map_size,
         step_size=args.step_size,
@@ -57,12 +63,14 @@ def main():
         planner = CMNRRTStarV2(
         start_positions,
         goal_positions,
+        args.num_obstacles,
         args.num_agents,
         args.map_size,
         step_size=args.step_size,
         max_iter=10000,
         live_plot=args.live_plot,
-        map_type=args.map_type
+        map_type=args.map_type,
+        debug=args.debug
         )
 
     else:

@@ -4,8 +4,9 @@ import matplotlib.animation as animation
 import scipy.spatial
 import math
 import random
-import argparse
 import time
+import io
+import base64
 
 from utils.generator import generate_map
 from utils.plotter import *
@@ -54,33 +55,38 @@ class Agent:
 
 # Multi-Agent RRT* (CMN-RRT*)
 class CMNRRTStarV2:
-    def __init__(self, start_position, goal_position, num_agents, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
+    def __init__(self, start_position, goal_position, num_obstacles,
+                  num_agents, map_size, map_type="empty",
+                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, ):
         
+
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        self.obstacles = generate_map(map_type, map_size)
-        self.obstacle_type = "wall"
+        self.obstacles = generate_map(map_type, map_size, num_obstacles)
+        if map_type == "random_polygons":
+            self.obstacle_type = "polygon"
+        else:
+            self.obstacle_type = "wall"
+
         self.goal_region_radius = 4
 
         self.start_node = Node("start", 0, start_position[0], start_position[1])
         self.goal_node = Node("goal", -1, goal_position[0], goal_position[1])
-
-
-        
+  
         # Algorithm variables
         self.step_size = step_size
         self.max_iter = max_iter
         self.search_radius = 4.0
-        self.link_radius = 5.0
+        self.link_radius = 10.0
         
         # Initialise agents
         self.agents = [Agent(0, self.start_node, AGENT_COLORS[0 % len(AGENT_COLORS)])]
         self.num_agents = num_agents
         
         # Agent generation variables
-        self.cost_threshold = (self.map_size[0] + self.map_size[1]) / 5
-        self.agent_node_radius = 20 # Helps checking collisions for agent placement
+        self.cost_threshold = (self.map_size[0] + self.map_size[1]) / 2
+        self.agent_node_radius = 10 # Helps checking collisions for agent placement
 
         self.generate_agents()
 
@@ -89,8 +95,11 @@ class CMNRRTStarV2:
         self.goal_reached = [False] * self.num_agents
 
 
-        # Visualization setup
+        # Visualization and debug setup
+
         self.live_plot = live_plot
+        self.debug = debug
+
         self.fig, self.ax = plt.subplots()
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
 
@@ -103,7 +112,7 @@ class CMNRRTStarV2:
     def generate_agents(self):
 
         # Starts from 1 because Agent 0 is created in the starting node
-        for i in range(1, self.num_agents - 1):
+        for i in range(1, self.num_agents):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
 
@@ -123,18 +132,24 @@ class CMNRRTStarV2:
                 self.num_agents -= 1
         print(f"# ------- Based on the distance only {self.num_agents} are useful.")
 
-    # TODO: need to implement collision with walls for agent initial placement  
+   
     # This function checks if a node is collision free. That means no collision with
     # any obstacle or any other initial nodes
     def is_agent_collision_free(self, x, y):
 
         # Checking if nodes collide with any walls
-        for obstacle in self.obstacles: 
-            x_min, y_min, width, height = obstacle
-            
-            if (x_min <= x <= x_min + width and y_min <= y <= y_min + height):
-                print(f"# ------- Agent {x} {y} collides with walls")
-                return False
+        if self.obstacle_type == "wall":
+            for obstacle in self.obstacles:
+                x_min, y_min, width, height = obstacle
+                if x_min <= x <= x_min + width and y_min <= y <= y_min + height:
+                    return False
+
+        elif self.obstacle_type == "polygon":
+            from matplotlib.path import Path
+            for polygon in self.obstacles:
+                path = Path(polygon)
+                if path.contains_point((x, y)):
+                    return False
         
         # Checking if nodes overlap - trying to have them as sparse as possible
         for other_agent in self.agents:
@@ -219,6 +234,7 @@ class CMNRRTStarV2:
             length += math.hypot(dx, dy)
         return length
     
+    # Main Algorithm is here - from where we call functions.
     def plan(self):
         # Start the timer for each agent
         for agent in self.agents:
@@ -226,7 +242,7 @@ class CMNRRTStarV2:
 
         for iter_count in range(self.max_iter):
             for agent in self.agents:
-                agent_id = agent.id
+                
                 if agent.goal_reached:
                     continue
 
@@ -236,29 +252,39 @@ class CMNRRTStarV2:
                 nearest_node = self.get_nearest_node(agent.nodes, rand_node)
                 # New node appears on the map - this is to be linked with the agent
                 exploratory_step = self.step_size * (2 if random.random() < 0.1 else 1)
-                new_node = self.steer(agent_id, nearest_node, rand_node, self.step_size)
+                new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
 
                 if self.is_collision_free(nearest_node, new_node):
                     
+
                     # Rewireing
                     near_nodes = self.find_near_nodes(agent.nodes, new_node)                    
-                    new_node = self.choose_parent(agent_id, near_nodes, new_node)
+                    new_node = self.choose_parent(agent.id, near_nodes, new_node)
                     agent.add_node(new_node)
                     self.rewire(agent.nodes, near_nodes, new_node)
                     
                     draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
 
-                    # Check if agent met another agent
+                    # # Check if agent met another agent
+                   
                     linked = self.check_and_link_agents(agent, new_node)
                     if linked:
-                        draw_path(self.ax, agent.path, color="red")
-                        continue
+                        if self.debug:           
+                            print(f"Link Agent {agent.id}")
 
+                        draw_path(self.ax, agent.path, color="red")
+                        
+                    
+                 
                     if self.reached_goal(new_node, self.goal_node):
+                        if self.debug:
+                            print(f"Agent {agent.id} reached the goal")
+
                         agent.path = self.generate_final_path(new_node)
                         agent.goal_reached = True
                         agent.goal_node = new_node
 
+                      
                         # Save result info
                         duration = time.time() - agent.start_time
                         path_len = self.compute_path_length(agent.path)
@@ -291,31 +317,44 @@ class CMNRRTStarV2:
 
     def segments_intersect(self, A, B, C, D):
         return self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D)
-
+    
+    def segment_intersects_polygon(self, p1, p2, path, num_samples=10):
+        for i in range(num_samples + 1):
+            t = i / num_samples
+            x = p1[0] + t * (p2[0] - p1[0])
+            y = p1[1] + t * (p2[1] - p1[1])
+            if path.contains_point((x, y)):
+                return True
+        return False
     def is_collision_free(self, from_node, to_node):
-        # For each wall
-        for (x_min, y_min, width, height) in self.obstacles:
-            x_max = x_min + width
-            y_max = y_min + height
+        p1 = (from_node.x, from_node.y)
+        p2 = (to_node.x, to_node.y)
 
-            # Break wall into 4 edges as line segments
-            wall_edges = [
-                ((x_min, y_min), (x_max, y_min)),  # bottom
-                ((x_max, y_min), (x_max, y_max)),  # right
-                ((x_max, y_max), (x_min, y_max)),  # top
-                ((x_min, y_max), (x_min, y_min)),  # left
-            ]
+        if self.obstacle_type == "wall":
+            for (x_min, y_min, width, height) in self.obstacles:
+                x_max = x_min + width
+                y_max = y_min + height
 
-            # Line segment from agent's path
-            p1 = (from_node.x, from_node.y)
-            p2 = (to_node.x, to_node.y)
+                wall_edges = [
+                    ((x_min, y_min), (x_max, y_min)),  # bottom
+                    ((x_max, y_min), (x_max, y_max)),  # right
+                    ((x_max, y_max), (x_min, y_max)),  # top
+                    ((x_min, y_max), (x_min, y_min)),  # left
+                ]
 
-            # Check for intersection with any wall edge
-            for (w1, w2) in wall_edges:
-                if self.segments_intersect(p1, p2, w1, w2):
-                    return False  # collision
+                for (w1, w2) in wall_edges:
+                    if self.segments_intersect(p1, p2, w1, w2):
+                        return False  # collision
 
-        return True  # no collision
+        elif self.obstacle_type == "polygon":
+            from matplotlib.path import Path
+            for polygon in self.obstacles:
+                path = Path(polygon)
+                # Sample the segment with intermediate points to check
+                if self.segment_intersects_polygon(p1, p2, path):
+                    return False
+
+        return True
     
 
     def reached_goal(self, node, goal):
@@ -375,7 +414,11 @@ class CMNRRTStarV2:
 
             for node_b in agent_b.nodes:
                 if self.distance(new_node, node_b) <= self.link_radius:
-
+                    
+                    if not self.is_collision_free(new_node, node_b):
+                       
+                        continue
+                    
                     if not agent_b.goal_reached:
                         continue  # we only link to agents that reached the goal
 
@@ -415,6 +458,13 @@ class CMNRRTStarV2:
 
     def animate(self):
         plt.show()
+
+    def export_plot_as_base64(self):
+        buffer = io.BytesIO()
+        self.fig.savefig(buffer, format='png', bbox_inches='tight')
+        buffer.seek(0)
+        img_str = base64.b64encode(buffer.read()).decode('utf-8')
+        return img_str
     
 # Execution
 

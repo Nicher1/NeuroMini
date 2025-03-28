@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+from matplotlib.patches import Polygon as MplPolygon
 
 AGENT_COLORS = [
     'orange', 'green', 'purple', 'cyan',
@@ -17,16 +17,22 @@ def setup_visualization(ax, agents, goal, map_size, obstacle_type, obstacles):
     
     for i, agent in enumerate(agents):
         
-        
-        ax.plot(agent.initial_node.x, agent.initial_node.y, 'o', color=agent.color, label=f'Start {i+1}')
-    ax.plot(goal.x, goal.y, 'ro', label=f'Goal {i+1}')
+        if agent.id == 0:
+            ax.plot(agent.initial_node.x, agent.initial_node.y, 'o', color=agent.color, label=f"Start")
+        else: 
+            ax.plot(agent.initial_node.x, agent.initial_node.y, 'o', color=agent.color, label=f"Agent_{agent.id}")
+    ax.plot(goal.x, goal.y, 'ro', label=f'Goal')
     
     if obstacle_type == "wall":
         draw_rectangle_obstacles(ax, obstacles)
+    elif obstacle_type == "polygon":
+         draw_polygon_obstacles(ax, obstacles)
     else:
         draw_circle_obstacles(ax, obstacles)
 
-    ax.legend(loc='upper left', fontsize=12)
+    ax.legend(
+        loc='lower right', fontsize=10
+    )
 
 def draw_circle_obstacles(ax, obstacles):
     for (ox, oy, size) in obstacles:
@@ -37,6 +43,11 @@ def draw_rectangle_obstacles(ax, obstacles):
     for (x, y, w, h) in obstacles:
         rect = plt.Rectangle((x, y), w, h, color='gray', alpha=0.7)
         ax.add_patch(rect)
+
+def draw_polygon_obstacles(ax, polygons, color='gray'):
+    for poly in polygons:
+        patch = MplPolygon(poly, closed=True, color=color, alpha=0.6)
+        ax.add_patch(patch)
 
 def draw_tree(ax, node, color='b', live_plot=False, label=None):
     if node.parent:

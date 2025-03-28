@@ -1,6 +1,69 @@
 import math
 import random
 
+def generate_random_polygons(map_size, num_polygons=5, seed=None):
+    """
+    Generate random convex-like polygon obstacles.
+    Each polygon is defined as a list of (x, y) points.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    polygons = []
+
+    for _ in range(num_polygons):
+        # Random center
+        cx = random.randint(20, map_size[0] - 20)
+        cy = random.randint(20, map_size[1] - 20)
+
+        # Number of vertices
+        num_vertices = random.randint(3, 6)
+
+        # Radius for size
+        radius = random.randint(8, 20)
+
+        points = []
+        for i in range(num_vertices):
+            angle = 2 * math.pi * i / num_vertices + random.uniform(-0.2, 0.2)
+            r = radius * random.uniform(0.7, 1.2)
+            x = cx + r * math.cos(angle)
+            y = cy + r * math.sin(angle)
+            # Clip to map
+            x = max(0, min(x, map_size[0]))
+            y = max(0, min(y, map_size[1]))
+            points.append((x, y))
+
+        polygons.append(points)
+
+    return polygons
+
+def generate_fixed_rectangles(map_size):
+    obstacles = []
+
+    # Define 5 rectangles spaced out across the map
+    spacing_x = map_size[0] // 6
+    spacing_y = map_size[1] // 6
+
+    sizes = [
+        (10, 10),
+        (12, 8),
+        (8, 12),
+        (10, 10),
+        (6, 14)
+    ]
+
+    for i in range(5):
+        x = spacing_x * (i + 1) - sizes[i][0] // 2
+        y = spacing_y * (i + 1) - sizes[i][1] // 2
+        w, h = sizes[i]
+
+        # Ensure they don’t exceed map bounds
+        x = min(x, map_size[0] - w)
+        y = min(y, map_size[1] - h)
+
+        obstacles.append((x, y, w, h))
+
+    return obstacles
 # In here there are various functions that you can use to generate map to test RRT.
 def generate_labyrinth_maze(map_size, wall_size=3, cell_size=20):
     width, height = map_size[0] // cell_size, map_size[1] // cell_size
@@ -73,6 +136,10 @@ def generate_diagonal_wall(map_size, block_size=2, wall_thickness=5):
 def generate_map(map_type, map_size, num_obstacles=None):
     if map_type == "diagonal":
         return generate_diagonal_wall(map_size)
+    elif map_type == "rectangles":
+        return generate_fixed_rectangles(map_size)
+    elif map_type == "random_polygons":
+        return generate_random_polygons(map_size, num_obstacles)
     elif map_type == "labyrinth":
         return generate_labyrinth_maze(map_size)
     elif map_type == "empty":
