@@ -45,20 +45,20 @@ The algorithms can be benchmarked on five predefined map types designed to evalu
 
 ### Running Individual Tests
 
-You can perform individual algorithm tests using the `main.py` script:
+You can perform individual algorithm tests using the `main.py` script located in `src/2D/`:
 
 ```bash
-python main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt --live_plot
+python src/2D/main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt --live_plot
 ```
 
 Remove the `--live_plot` argument for faster execution without visualisation.
 
 ### Benchmarking
 
-To run multiple benchmark tests for statistical evaluation, use `benchmark.py`:
+To run multiple benchmark tests for statistical evaluation, use `benchmark.py` located in `src/2D/`:
 
 ```bash
-python benchmark.py --num_runs 10 --num_agents 3 --map_size 200 200 --step_size 1.0 --map_type labyrinth --num_obstacles 10
+python src/2D/benchmark.py --num_runs 10 --num_agents 3 --map_size 200 200 --step_size 1.0 --map_type labyrinth --num_obstacles 10
 ```
 
 - `--num_runs`: Number of repeated tests for averaging results.
@@ -66,14 +66,14 @@ python benchmark.py --num_runs 10 --num_agents 3 --map_size 200 200 --step_size 
 - `--num_agents`: Number of simultaneous agents (relevant for CMN-RRT*).
     
 
-Results are saved in the `results/` directory, including CSV, JSON summaries, and visual plots.
+Results are saved in the `src/2D/results/` directory, including CSV, JSON summaries, and visual plots.
 
 ### Running All Tests Automatically
 
-The provided bash script `run_all.sh` automates testing across all algorithms and maps, but note that this comprehensive benchmarking process takes significantly more time:
+The provided bash script `run_all.sh` located in `src/2D/` automates testing across all algorithms and maps, but note that this comprehensive benchmarking process takes significantly more time:
 
 ```bash
-bash run_all.sh
+bash src/2D/run_all.sh
 ```
 
 ### Benchmarking and Performance
@@ -93,10 +93,12 @@ CMN-RRT* demonstrates superior path optimality and robustness, particularly in c
 
 #### RRT
 
-![rrt](https://github.com/user-attachments/assets/87ff81af-5170-42ed-9220-4958365646e0)
+![rrt](Figures/rrt_run8.png)
 
 #### RRT*
 
-![rrt_star](https://github.com/user-attachments/assets/c5d4883a-0271-4c5a-b31a-70620f57a707)
+![rrt_star](Figures/rrt_star_run8.png)
 
 #### CMN-RRT*
+
+![cmn_rrt_star](Figures/cmn_rrt_star_run2.png)
