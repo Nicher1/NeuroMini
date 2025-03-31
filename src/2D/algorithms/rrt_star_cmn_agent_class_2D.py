@@ -10,8 +10,7 @@ import base64
 
 from utils.generator import generate_map
 from utils.plotter import *
-
-# Node class representing a state in the space
+        
 class Node:
     def __init__(self, label, agent_id, x, y):
         self.label = label
@@ -20,6 +19,7 @@ class Node:
         self.y = y
         self.parent = None
         self.cost = 0
+        self.sons = []
 
 class Agent:
     def __init__(self, id, node, color):
@@ -33,7 +33,6 @@ class Agent:
         self.path = []
 
         self.goal_reached = False
-        self.goal_node = None
         
         # CMN Variables
         self.linked_from = None   # Parent agent (the one that links to this agent)
@@ -81,8 +80,8 @@ class CMNRRTStarV2:
         # Algorithm variables
         self.step_size = step_size
         self.max_iter = max_iter
-        self.search_radius = 4.0
-        self.link_radius = 10.0
+        self.search_radius = step_size
+        self.link_radius = 4.0
         
         
         # Initialise agents
@@ -228,113 +227,15 @@ class CMNRRTStarV2:
         # Exploration-aware sample
         return self.get_exploration_node(agent)
     
-    # --- END ---- Exploration Functions ---- 
+    def rewire(self, tree, near_nodes, new_node):
+        for node in near_nodes:
+            new_cost = new_node.cost + self.distance(new_node, node)
+            if new_cost < node.cost and self.is_collision_free(new_node, node):
+                node.parent = new_node
+                node.cost = new_cost
 
-    # This function get the nearest node to the random node
-    # previously generated. 
-    def get_nearest_node(self, tree, rand_node):
-        points = np.array([[node.x, node.y] for node in tree])
-        tree_kdtree = scipy.spatial.KDTree(points)
-        _, index = tree_kdtree.query([rand_node.x, rand_node.y])
-        return tree[index]
-    
-    def compute_path_length(self, path):
-        length = 0.0
-        for i in range(1, len(path)):
-            dx = path[i][0] - path[i-1][0]
-            dy = path[i][1] - path[i-1][1]
-            length += math.hypot(dx, dy)
-        return length
-    
-    # Main Algorithm is here - from where we call functions.
-    def plan(self):
-        # Start the timer for each agent
-        start_time = time.time()
-        for agent in self.agents:
-            agent.start_time = start_time
-
-        for iter_count in range(self.max_iter):
-            for agent in self.agents:
-                
-                if agent.goal_reached:
-                    
-                    if agent.results["time"] != 0.0:     
-                        agent.results["time"] = time.time() - agent.start_time
-
-                    continue
-
-                # Generate a random node arround the map - favoring goal direction
-                rand_node = self.get_weighted_random_node(agent)
-                # Get the nearest node to the random node
-                nearest_node = self.get_nearest_node(agent.nodes, rand_node)
-                # New node appears on the map - this is to be linked with the agent
-                exploratory_step = self.step_size * (2 if random.random() < 0.1 else 1)
-                new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
-
-                if self.is_collision_free(nearest_node, new_node):
-                    
-                    # Rewireing
-                    near_nodes = self.find_near_nodes(agent.nodes, new_node)                    
-                    new_node = self.choose_parent(agent.id, near_nodes, new_node)
-                    agent.add_node(new_node)
-                    self.rewire(agent.nodes, near_nodes, new_node)
-                    
-                    draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
-                    
-                    # # Check if agent met another agent     
-                    # merged = self.check_and_merge_agents(agent, new_node)
-                    if self.reached_goal(new_node, self.goal_node):
-                        
-
-                        agent.path = self.generate_final_path(new_node)
-                        agent.goal_reached = True
-
-                        agent.goal_node = new_node
-
-                      
-                        # Save result info
-                        path_len = self.compute_path_length(agent.path)
-
-                        agent.results["iterations"] = iter_count
-                        agent.results["path_length"] = path_len
-
-                    
-                    # if merged:
-                    #     draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path") 
-                    #     agent.results["linked"] = True 
-                        
-
-                    #     break  # St
-                   
-                  
-                   
-                
-                   
-            if len(self.agents) == 1 and self.agents[0].goal_reached:
-                break
-
-            if any(a.goal_reached for a in self.agents) and len(self.agents) <= 2:
-                 break
-
-        self.total_planning_time = time.time() - start_time
-        self.agents[0].results["time"] = time.time() - self.agents[0].start_time
-        # print(f"Total planning time: {self.total_planning_time:.2f} seconds")
-        self.compute_linked_path_length()
-        # print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
-
-      
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
-
-                
-    
-    def steer(self, agent_id, from_node, to_node, step_size):
-        theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
-        new_node = Node("node", agent_id, from_node.x + step_size * math.cos(theta),
-                        from_node.y + self.step_size * math.sin(theta))
-        new_node.parent = from_node
-        return new_node
+    def distance(self, node1, node2):
+        return math.hypot(node1.x - node2.x, node1.y - node2.y)
     
     def ccw(self, A, B, C):
         return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
@@ -350,6 +251,7 @@ class CMNRRTStarV2:
             if path.contains_point((x, y)):
                 return True
         return False
+    
     def is_collision_free(self, from_node, to_node):
         p1 = (from_node.x, from_node.y)
         p2 = (to_node.x, to_node.y)
@@ -380,27 +282,24 @@ class CMNRRTStarV2:
 
         return True
     
+    # --- END ---- Exploration Functions ---- 
 
-    def reached_goal(self, node, goal):
-        return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius
+   # --- START ---- Tree generation functions ----
+
+    # This function get the nearest node to the random node
+    # previously generated. 
+    def get_nearest_node(self, tree, rand_node):
+        points = np.array([[node.x, node.y] for node in tree])
+        tree_kdtree = scipy.spatial.KDTree(points)
+        _, index = tree_kdtree.query([rand_node.x, rand_node.y])
+        return tree[index]
     
-    def generate_final_path(self, end_node, start_node=None):
-        path = []
-        node = end_node
-        while node and (start_node is None or node != start_node):
-            path.append((node.x, node.y))
-            node = node.parent
-        if start_node:
-            path.append((start_node.x, start_node.y))
-        return path[::-1]
-    
-    def find_near_nodes(self, tree, new_node, radius=10.0):
-        near_nodes = []
-        for node in tree:
-            dist = math.hypot(node.x - new_node.x, node.y - new_node.y)
-            if dist <= radius:
-                near_nodes.append(node)
-        return near_nodes
+    def steer(self, agent_id, from_node, to_node, step_size):
+        theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
+        new_node = Node("node", agent_id, from_node.x + step_size * math.cos(theta),
+                        from_node.y + self.step_size * math.sin(theta))
+        new_node.parent = from_node
+        return new_node
     
     def choose_parent(self, agent_id, near_nodes, new_node):
         best_parent = None
@@ -417,97 +316,145 @@ class CMNRRTStarV2:
         if best_parent:
             new_node.parent = best_parent
             new_node.cost = best_cost
+            best_parent.sons.append(new_node)  # Add the new node to the parent's sons list
         return new_node
+
+    # --- START ---- CMN algorithm and everything it needs ----
+
+ # Main Algorithm is here - from where we call functions.
+    def plan(self):
+        # Start the timer that ends when the starting node is connected to the goal
+        start_time = time.time()
+
+        # For each step
+        for iter_count in range(self.max_iter):
+            # If the first agent has arrived, finish the algorithm
+            if self.agents[0].goal_reached:
+                # Stop the timer
+                if self.agents[0].results["time"] == 0.0:
+                    self.agents[0].results["time"] = time.time() - start_time
+
+                # Generate the final path and calculate its cost
+                self.agents[0].path, self.agents[0].results["path_cost"] = self.generate_final_path(
+                    self.goal_node, self.start_node
+                )
+                self.agents[0].results["iterations"] = iter_count
+
+                # Convert the path to a list of (x, y) tuples
+                path_coordinates = [(node.x, node.y) for node in self.agents[0].path]
+
+                # Print the final path nodes for debugging
+                print("Final Path Nodes:")
+                for coord in path_coordinates:
+                    print(f"Node: {coord}")
+
+                # Draw the final path on the plot
+                draw_path(self.ax, path_coordinates, color='red', linewidth=3, linestyle='-', label="Final Path")
+                plt.legend()
+                plt.pause(0.01)  # Update the plot
+
+                # Print the results
+                print(f"Final Path Found!")
+                print(f"Time Taken: {self.agents[0].results['time']:.2f} seconds")
+                print(f"Path Cost: {self.agents[0].results['path_cost']:.2f}")
+                print(f"Iterations: {self.agents[0].results['iterations']}")
+                break
+
+            # For each agent
+            for agent in self.agents:
+                if not agent.goal_reached:
+                    # Generate a random node around the map - favoring goal direction
+                    rand_node = self.get_weighted_random_node(agent)
+                    nearest_node = self.get_nearest_node(agent.nodes, rand_node)
+                    new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
+
+                    if self.is_collision_free(nearest_node, new_node):
+                        # Rewiring
+                        near_nodes = self.find_near_nodes(agent.nodes, new_node)
+                        new_node = self.choose_parent(agent.id, near_nodes, new_node)
+                        agent.add_node(new_node)
+                        self.rewire(agent.nodes, near_nodes, new_node)
+
+                        draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
+                        self.link_near_nodes(agent, new_node)
+
+                        # Check if the agent reached the goal
+                        if self.reached_goal(new_node, self.goal_node):
+                            agent.goal_reached = True
+                    
+                            if agent.id != 0:
+                                self.goal_node = new_node
+
+        # If no path is found after max iterations
+        if not self.agents[0].goal_reached:
+            print("No path found within the maximum iterations.")
+
+    def link_near_nodes(self, agent, new_node):
+        # Check if the new node is close to any other node from other agents
+        for other_agent in self.agents:
+            if other_agent.id != agent.id:
+                for other_node in other_agent.nodes:
+                    if self.distance(new_node, other_node) < self.link_radius and self.is_collision_free(new_node, other_node):
+                        new_node.sons.append(other_node)
+                        other_node.sons.append(new_node)
+                        if other_agent.goal_reached:
+                            agent.goal_reached = True
+                        break
+
+    def reached_goal(self, node, goal):
+        return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius
+
+
+
     
-    def distance(self, node1, node2):
-        return math.hypot(node1.x - node2.x, node1.y - node2.y)
+    def generate_final_path(self, end_node, start_node=None):
+        # Initialize distances and previous nodes
+        distances = {end_node: 0}
+        previous_nodes = {end_node: None}
+        unvisited = [end_node]
 
-    def rewire(self, tree, near_nodes, new_node):
-        for node in near_nodes:
-            new_cost = new_node.cost + self.distance(new_node, node)
-            if new_cost < node.cost and self.is_collision_free(new_node, node):
-                node.parent = new_node
-                node.cost = new_cost
+        # Dijkstra's algorithm
+        while unvisited:
+            # Get the node with the smallest distance
+            current_node = min(unvisited, key=lambda node: distances[node])
+            unvisited.remove(current_node)
+
+            # If we reached the start node, stop
+            if start_node and current_node == start_node:
+                break
+
+            # Traverse sons and parent
+            neighbors = current_node.sons[:]
+            if current_node.parent:
+                neighbors.append(current_node.parent)
+
+            for neighbor in neighbors:
+                cost = self.distance(current_node, neighbor)
+                new_distance = distances[current_node] + cost
+
+                if neighbor not in distances or new_distance < distances[neighbor]:
+                    distances[neighbor] = new_distance
+                    previous_nodes[neighbor] = current_node
+                    unvisited.append(neighbor)
+
+        # Reconstruct the path
+        path = []
+        current_node = start_node if start_node else self.start_node
+        while current_node:
+            path.append(current_node)
+            current_node = previous_nodes.get(current_node)
+
+        path.reverse()
+        return path, distances.get(start_node, float('inf'))
 
 
-    # CMN Functions From there
-    def check_and_link_agents(self, agent_a, new_node):
-        for agent_b in self.agents:
-            if agent_b.id == agent_a.id:
-                continue  # skip self
-
-            for node_b in agent_b.nodes:
-                if self.distance(new_node, node_b) <= self.link_radius:
-                    
-                    if not self.is_collision_free(new_node, node_b):
-                       
-                        continue
-                    
-                    if not agent_b.goal_reached:
-                        continue  # we only link to agents that reached the goal
-
-                    # Create linked path: A to meeting point, then B to goal
-                    path_to_meeting = self.generate_final_path(new_node)
-                    path_from_meeting = self.generate_final_path(agent_b.goal_node, start_node=node_b)
-
-                    full_linked_path = path_to_meeting + path_from_meeting
-
-                    linked_path_length = self.compute_path_length(full_linked_path)
-                    
-                    # If agent A has no goal path or this is better
-                    if not agent_a.goal_reached or linked_path_length < agent_a.results["path_length"]:
-                        # Accept the link
-                        agent_a.goal_reached = True
-                        agent_a.linked_from = agent_b
-                        agent_b.linked_to.append(agent_a)
-                        agent_a.path = full_linked_path
-                        agent_a.results["path_length"] = linked_path_length
-                        agent_a.results["linked"] = True
-                        return True
-        return False
-
-    
-    def generate_linked_path(self, agent_a, meeting_node_a, meeting_node_b, agent_b):
-        # Path from agent A's tree to meeting point
-        path_to_meet = self.generate_final_path(meeting_node_a)
-
-        # Path from agent B's meeting node to its goal
-        path_from_meet = []
-        node = meeting_node_b
-        while node:
-            path_from_meet.append((node.x, node.y))
-            node = node.parent
-        path_from_meet.reverse()
-
-        # Combine the paths
-        return path_to_meet + path_from_meet
-
-    def compute_linked_path_length(self):
-        def trace_linked_path(agent):
-            path = []
-            current = agent
-            while current:
-                if current.path:
-                    path = current.path + path  # prepend
-                current = current.linked_from
-            return path
-
-        best_path = None
-        best_length = float('inf')
-
-        # Try all agents that reached the goal (may be linked or not)
-        for agent in self.agents:
-            if agent.goal_reached and agent.path:
-                full_path = trace_linked_path(agent)
-                length = self.compute_path_length(full_path)
-
-                if length < best_length:
-                    best_length = length
-                    best_path = full_path
-
-        self.total_path_length = best_length
-        self.best_collaborative_path = best_path
-
+    def find_near_nodes(self, tree, new_node, radius=10.0):
+        near_nodes = []
+        for node in tree:
+            dist = math.hypot(node.x - new_node.x, node.y - new_node.y)
+            if dist <= radius:
+                near_nodes.append(node)
+        return near_nodes
 
     def animate(self):
         plt.show()
