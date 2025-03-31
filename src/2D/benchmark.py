@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from algorithms.rrt_2D import RRT
 from algorithms.rrt_star_2D import RRTStar
-from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStarV2
+from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStar
 from tqdm import tqdm
 from utils.plotter import *
 from utils.generator import *
@@ -248,7 +248,7 @@ def main():
             write_stats(name, results[name], args, file=f)
     write_stats(name, results["rrt_star"], args)
 
-    results["cmn_rrt_star"] = benchmark("cmn_rrt_star", CMNRRTStarV2, args, map_obstacles, args.num_runs, is_multi_agent=True)
+    results["cmn_rrt_star"] = benchmark("cmn_rrt_star", CMNRRTStar, args, map_obstacles, args.num_runs, is_multi_agent=True)
     with open(summary_file, "w") as f:
         for name in results:
             write_stats(name, results[name], args, file=f)

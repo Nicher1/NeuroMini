@@ -173,12 +173,10 @@ class RRT:
                         agent.results["time"] = duration
                         self.total_planning_time = duration
 
-                        draw_path(self.ax, agent.path, color=agent.color)
-
-
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']}")
+        print("\n--- Agent Results ---")
+        draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path", live_plot=True) 
+        for agent in self.agents:
+            print(f"Agent {agent.id} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']}")
 
     
     def steer(self, agent_id, from_node, to_node, step_size):

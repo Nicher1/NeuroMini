@@ -55,7 +55,7 @@ class Agent:
         self.nodes.append(node)
 
 # Multi-Agent RRT* (CMN-RRT*)
-class CMNRRTStarV2:
+class CMNRRTStar:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
                     step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, map_obstacles=None):
@@ -260,6 +260,7 @@ class CMNRRTStarV2:
                     
                     if agent.results["time"] != 0.0:     
                         agent.results["time"] = time.time() - agent.start_time
+                    
 
                     continue
 
@@ -282,7 +283,7 @@ class CMNRRTStarV2:
                     draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
                     
                     # # Check if agent met another agent     
-                    # merged = self.check_and_merge_agents(agent, new_node)
+                    linked = self.check_and_link_agents(agent, new_node)
                     if self.reached_goal(new_node, self.goal_node):
                         
 
@@ -291,25 +292,16 @@ class CMNRRTStarV2:
 
                         agent.goal_node = new_node
 
-                      
                         # Save result info
                         path_len = self.compute_path_length(agent.path)
 
                         agent.results["iterations"] = iter_count
                         agent.results["path_length"] = path_len
 
-                    
-                    # if merged:
-                    #     draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path") 
-                    #     agent.results["linked"] = True 
                         
-
-                    #     break  # St
-                   
-                  
-                   
-                
-                   
+                    if linked:
+                        draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path")
+                        
             if len(self.agents) == 1 and self.agents[0].goal_reached:
                 break
 
@@ -318,14 +310,14 @@ class CMNRRTStarV2:
 
         self.total_planning_time = time.time() - start_time
         self.agents[0].results["time"] = time.time() - self.agents[0].start_time
-        # print(f"Total planning time: {self.total_planning_time:.2f} seconds")
+        print(f"Total planning time: {self.total_planning_time:.2f} seconds")
         self.compute_linked_path_length()
-        # print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
+        print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
 
       
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
+        print("\n--- Agent Results ---")
+        for agent in self.agents:
+            print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
 
                 
     

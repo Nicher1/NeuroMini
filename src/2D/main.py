@@ -3,7 +3,7 @@
 import argparse
 from algorithms.rrt_2D import RRT
 from algorithms.rrt_star_2D import RRTStar
-from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStarV2
+from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStar
 from algorithms.rrt_star_cmn_parallel_2D import CMNRRTStarParallel
 
 def main():
@@ -48,7 +48,7 @@ def main():
         )
 
     elif args.algorithm == "rrt_star":
-        planner = CMNRRTStarV2(
+        planner = RRTStar(
         start_positions,    
         goal_positions,
         args.num_obstacles,
@@ -61,20 +61,7 @@ def main():
         )
 
     elif args.algorithm == "cmn_rrt_star":
-        planner = CMNRRTStarV2(
-        start_positions,
-        goal_positions,
-        args.num_obstacles,
-        args.num_agents,
-        args.map_size,
-        step_size=args.step_size,
-        max_iter=10000,
-        live_plot=args.live_plot,
-        map_type=args.map_type,
-        debug=args.debug
-        )
-    elif args.algorithm == "cmn_rrt_star_parallel":
-        planner = CMNRRTStarParallel(
+        planner = CMNRRTStar(
         start_positions,
         goal_positions,
         args.num_obstacles,
