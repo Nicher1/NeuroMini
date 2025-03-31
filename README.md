@@ -23,8 +23,10 @@ You should remove **_--live_plot_** otherwise the speed will be impacted by the 
 ![rrt_star](https://github.com/user-attachments/assets/c5d4883a-0271-4c5a-b31a-70620f57a707)
 
 
-
----python
+### Algorithm pseudocode
+This is funny, we just asked ChatGpt to generate a cryptic version of our implementation. A nice thing to think about. If AI Agents will eventually write code in our place
+what if they will start writing it in such a way, us humans will never understand. How are we going to be able to interact with machines at their hardware level.
+```python
 class Ξ:
     def __init__(ξ, Ω, δ, ϕ, α, ζ, ψ=10000, 🧠=False, 🗺️="ethereal"):
         ξ.π, ξ.τ = Ω, δ
@@ -70,4 +72,4 @@ class Ξ:
     def 🎯🎯(ξ, ν, τ): ...
     def 🔗(ξ, ν): ...
     def 📈(ξ): print("🌟 The forest whispers: Success.")
----
+```
