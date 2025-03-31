@@ -1,0 +1,66 @@
+
+=== RRT Benchmark Results ===
+Map Type         : labyrinth
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 1
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.34 ± 0.16
+  Min / Max      : 0.17 / 0.69
+
+Path Length:
+  Mean ± Std     : 348.50 ± 34.40
+  Min / Max      : 310.00 / 410.00
+
+Iterations:
+  Mean ± Std     : 1152.40 ± 372.45
+  Min / Max      : 663.00 / 1873.00
+NPS Score        : 0.0042
+
+=== RRT_STAR Benchmark Results ===
+Map Type         : labyrinth
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 1
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.33 ± 0.15
+  Min / Max      : 0.18 / 0.68
+
+Path Length:
+  Mean ± Std     : 325.15 ± 24.38
+  Min / Max      : 298.32 / 386.02
+
+Iterations:
+  Mean ± Std     : 1006.20 ± 375.70
+  Min / Max      : 454.00 / 1806.00
+NPS Score        : 0.0049
+
+=== CMN_RRT_STAR Benchmark Results ===
+Map Type         : labyrinth
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 6
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.91 ± 0.23
+  Min / Max      : 0.62 / 1.31
+
+Path Length:
+  Mean ± Std     : 317.14 ± 27.63
+  Min / Max      : 288.79 / 375.07
+
+Iterations:
+  Mean ± Std     : 657.00 ± 217.42
+  Min / Max      : 391.00 / 1103.00
+NPS Score        : 0.0073

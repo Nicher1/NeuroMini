@@ -1,0 +1,66 @@
+
+=== RRT Benchmark Results ===
+Map Type         : empty
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 1
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.06 ± 0.01
+  Min / Max      : 0.04 / 0.08
+
+Path Length:
+  Mean ± Std     : 216.00 ± 9.66
+  Min / Max      : 200.00 / 235.00
+
+Iterations:
+  Mean ± Std     : 128.10 ± 19.89
+  Min / Max      : 104.00 / 169.00
+NPS Score        : 0.0347
+
+=== RRT_STAR Benchmark Results ===
+Map Type         : empty
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 1
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.08 ± 0.06
+  Min / Max      : 0.04 / 0.25
+
+Path Length:
+  Mean ± Std     : 204.94 ± 3.64
+  Min / Max      : 197.49 / 211.35
+
+Iterations:
+  Mean ± Std     : 134.70 ± 24.48
+  Min / Max      : 102.00 / 174.00
+NPS Score        : 0.0333
+
+=== CMN_RRT_STAR Benchmark Results ===
+Map Type         : empty
+Map Size         : 150 x 150
+Step Size        : 5.0
+Obstacles        : 12
+Agents           : 6
+Runs             : 10
+Success Rate     : 100.00%
+
+Planning Time (s):
+  Mean ± Std     : 0.11 ± 0.08
+  Min / Max      : 0.05 / 0.29
+
+Path Length:
+  Mean ± Std     : 202.11 ± 7.37
+  Min / Max      : 192.94 / 218.10
+
+Iterations:
+  Mean ± Std     : 46.00 ± 15.62
+  Min / Max      : 28.00 / 78.00
+NPS Score        : 0.0811

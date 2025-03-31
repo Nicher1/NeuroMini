@@ -58,16 +58,16 @@ class Agent:
 class RRTStar:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
-                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, map_obstacles=None):
+                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, pregenerate_map=None):
         
 
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        if map_obstacles == None:
+        if pregenerate_map == None:
             self.obstacles = generate_map(map_type, map_size, num_obstacles)
         else:
-            self.obstacles = map_obstacles
+            self.obstacles = pregenerate_map
         if map_type == "random_polygons":
             self.obstacle_type = "polygon"
         else:
@@ -299,16 +299,6 @@ class RRTStar:
                         agent.results["path_length"] = path_len
 
                     
-                    # if merged:
-                    #     draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path") 
-                    #     agent.results["linked"] = True 
-                        
-
-                    #     break  # St
-                   
-                  
-                   
-                
                    
             if len(self.agents) == 1 and self.agents[0].goal_reached:
                 break
@@ -318,15 +308,19 @@ class RRTStar:
 
         self.total_planning_time = time.time() - start_time
         self.agents[0].results["time"] = time.time() - self.agents[0].start_time
-        # print(f"Total planning time: {self.total_planning_time:.2f} seconds")
         self.compute_linked_path_length()
-        # print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
 
-      
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
+  
+        print(f"Final Path Found!")
+        print(f"Time Taken: {self.agents[0].results['time']:.2f} seconds")
+        print(f"Path Cost: {self.agents[0].results['path_length']:.2f}")
+        print(f"Iterations: {self.agents[0].results['iterations']}")
 
+        
+        draw_path(self.ax, self.agents[0].path, color='red', linestyle='--', label=f"Agent {self.agents[0].id} Linked Path", live_plot=True) 
+ 
+
+   
                 
     
     def steer(self, agent_id, from_node, to_node, step_size):

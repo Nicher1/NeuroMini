@@ -48,7 +48,7 @@ def main():
         )
 
     elif args.algorithm == "rrt_star":
-        planner = CMNRRTStarV2(
+        planner = RRTStar(
         start_positions,    
         goal_positions,
         args.num_obstacles,

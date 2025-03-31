@@ -41,13 +41,17 @@ class Agent:
         self.nodes.append(node)
 
 class RRT:
-    def __init__(self, start_position, goal_position, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False, map_obstacles=[]):
+    def __init__(self, start_position, goal_position, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False, pregenerate_map=None):
         
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        self.obstacles = map_obstacles
         
+        if pregenerate_map == None:
+            self.obstacles = generate_map(map_type, map_size, num_obstacles)
+        else:
+            self.obstacles = pregenerate_map
+
         if map_type == "random_polygons":
             self.obstacle_type = "polygon"
         else:
@@ -173,13 +177,14 @@ class RRT:
                         agent.results["time"] = duration
                         self.total_planning_time = duration
 
-                        draw_path(self.ax, agent.path, color=agent.color)
-
-
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']}")
-
+      
+        print(f"Final Path Found!")
+        print(f"Time Taken: {self.agents[0].results['time']:.2f} seconds")
+        print(f"Path Cost: {self.agents[0].results['path_length']:.2f}")
+        print(f"Iterations: {self.agents[0].results['iterations']}")
+    
+        draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path", live_plot=True) 
+       
     
     def steer(self, agent_id, from_node, to_node, step_size):
         theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)

@@ -1,0 +1,4 @@
+Algorithm,Map Type,Planning Time Mean,Planning Time Std,Planning Time Min,Planning Time Max,Path Length Mean,Path Length Std,Path Length Min,Path Length Max,Iterations Mean,Iterations Std,Iterations Min,Iterations Max,Success Rate,NPS Score
+rrt,rectangles,0.06,0.02,0.04,0.09,214.00,6.99,200.00,220.00,138.90,30.95,96.00,201.00,100.00,0.0323
+rrt_star,rectangles,0.07,0.01,0.05,0.08,203.51,8.22,192.37,216.45,125.90,17.10,102.00,156.00,100.00,0.0354
+cmn_rrt_star,rectangles,0.16,0.10,0.06,0.34,199.91,13.10,188.80,227.56,50.80,23.29,24.00,90.00,100.00,0.0751

@@ -58,7 +58,7 @@ class CMNRRTStarV2:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
                     step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, map_obstacles=None):
-        
+        self.debug = debug
 
         # Map properties
         self.map_size = map_size
@@ -102,7 +102,7 @@ class CMNRRTStarV2:
         # Visualization and debug setup
 
         self.live_plot = live_plot
-        self.debug = debug
+        
         self.fig, self.ax = plt.subplots()
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
 
@@ -130,12 +130,15 @@ class CMNRRTStarV2:
             y = random.uniform(0, self.map_size[1])
             initial_agent_node = Node("start", i, x, y)
 
+            count = 0
             # Repeat until the agent is placed on the map
             while not self.is_agent_collision_free(x, y) or not self.check_cost_of_agent(initial_agent_node):
                 x = random.uniform(0, self.map_size[0])
                 y = random.uniform(0, self.map_size[1])
                 initial_agent_node = Node("start", i, x, y)
-        
+                if count >= 500:
+                    break
+                count += 1
                     
             color = AGENT_COLORS[i % len(AGENT_COLORS)]
             agent = Agent(i, initial_agent_node, color)
@@ -166,8 +169,7 @@ class CMNRRTStarV2:
             cx = other_agent.initial_node.x
             cy = other_agent.initial_node.y
             if (x - cx) ** 2 + (x - cy) ** 2  <= self.agent_node_radius ** 2:
-                # if self.debug:
-                #     print(f"# ------- Agent at {x} {y} collides with {other_agent.id}")
+
                 return False
 
         return True
@@ -284,7 +286,7 @@ class CMNRRTStarV2:
     
     # --- END ---- Exploration Functions ---- 
 
-   # --- START ---- Tree generation functions ----
+    # --- START ---- Tree generation functions ----
 
     # This function get the nearest node to the random node
     # previously generated. 
@@ -321,13 +323,14 @@ class CMNRRTStarV2:
 
     # --- START ---- CMN algorithm and everything it needs ----
 
- # Main Algorithm is here - from where we call functions.
+    # Main Algorithm is here - from where we call functions.
     def plan(self):
         # Start the timer that ends when the starting node is connected to the goal
         start_time = time.time()
 
         # For each step
         for iter_count in range(self.max_iter):
+        
             # If the first agent has arrived, finish the algorithm
             if self.agents[0].goal_reached:
                 # Stop the timer
@@ -335,7 +338,7 @@ class CMNRRTStarV2:
                     self.agents[0].results["time"] = time.time() - start_time
 
                 # Generate the final path and calculate its cost
-                self.agents[0].path, self.agents[0].results["path_cost"] = self.generate_final_path(
+                self.agents[0].path, self.agents[0].results["path_length"] = self.generate_final_path(
                     self.goal_node, self.start_node
                 )
                 self.agents[0].results["iterations"] = iter_count
@@ -343,20 +346,18 @@ class CMNRRTStarV2:
                 # Convert the path to a list of (x, y) tuples
                 path_coordinates = [(node.x, node.y) for node in self.agents[0].path]
 
-                # Print the final path nodes for debugging
-                print("Final Path Nodes:")
-                for coord in path_coordinates:
-                    print(f"Node: {coord}")
+            
 
-                # Draw the final path on the plot
-                draw_path(self.ax, path_coordinates, color='red', linewidth=3, linestyle='-', label="Final Path")
+               
+                draw_path(self.ax, path_coordinates, color='red', linewidth=3, linestyle='--', label="Final Path")
                 plt.legend()
                 plt.pause(0.01)  # Update the plot
 
-                # Print the results
+      
+             
                 print(f"Final Path Found!")
                 print(f"Time Taken: {self.agents[0].results['time']:.2f} seconds")
-                print(f"Path Cost: {self.agents[0].results['path_cost']:.2f}")
+                print(f"Path Length: {self.agents[0].results['path_length']:.2f}")
                 print(f"Iterations: {self.agents[0].results['iterations']}")
                 break
 
@@ -386,8 +387,9 @@ class CMNRRTStarV2:
                                 self.goal_node = new_node
 
         # If no path is found after max iterations
-        if not self.agents[0].goal_reached:
-            print("No path found within the maximum iterations.")
+        if self.debug:
+            if not self.agents[0].goal_reached:
+                print("No path found within the maximum iterations.")
 
     def link_near_nodes(self, agent, new_node):
         # Check if the new node is close to any other node from other agents
@@ -404,9 +406,6 @@ class CMNRRTStarV2:
     def reached_goal(self, node, goal):
         return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius
 
-
-
-    
     def generate_final_path(self, end_node, start_node=None):
         # Initialize distances and previous nodes
         distances = {end_node: 0}
@@ -415,6 +414,7 @@ class CMNRRTStarV2:
 
         # Dijkstra's algorithm
         while unvisited:
+
             # Get the node with the smallest distance
             current_node = min(unvisited, key=lambda node: distances[node])
             unvisited.remove(current_node)
