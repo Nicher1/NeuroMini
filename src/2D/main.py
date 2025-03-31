@@ -4,11 +4,12 @@ import argparse
 from algorithms.rrt_2D import RRT
 from algorithms.rrt_star_2D import RRTStar
 from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStarV2
+from algorithms.rrt_star_cmn_parallel_2D import CMNRRTStarParallel
 
 def main():
     parser = argparse.ArgumentParser(description="Different implementations of RRT Algorithms")
 
-    parser.add_argument("--algorithm", choices=["rrt", "rrt_star", "cmn_rrt_star"], default="rrt",
+    parser.add_argument("--algorithm", choices=["rrt", "rrt_star", "cmn_rrt_star", "cmn_rrt_star_parallel"], default="rrt",
                         help="Choose which RRT-based algorithm to run")
 
     parser.add_argument("--num_agents", type=int, default=1,
@@ -37,8 +38,8 @@ def main():
         planner = RRT(
         start_positions,
         goal_positions,
-        args.num_obstacles,
         args.num_agents,
+        args.num_obstacles,
         args.map_size,
         step_size=args.step_size,
         max_iter=10000,
@@ -47,8 +48,8 @@ def main():
         )
 
     elif args.algorithm == "rrt_star":
-        planner = RRTStar(
-        start_positions,
+        planner = CMNRRTStarV2(
+        start_positions,    
         goal_positions,
         args.num_obstacles,
         args.num_agents,
@@ -61,6 +62,19 @@ def main():
 
     elif args.algorithm == "cmn_rrt_star":
         planner = CMNRRTStarV2(
+        start_positions,
+        goal_positions,
+        args.num_obstacles,
+        args.num_agents,
+        args.map_size,
+        step_size=args.step_size,
+        max_iter=10000,
+        live_plot=args.live_plot,
+        map_type=args.map_type,
+        debug=args.debug
+        )
+    elif args.algorithm == "cmn_rrt_star_parallel":
+        planner = CMNRRTStarParallel(
         start_positions,
         goal_positions,
         args.num_obstacles,

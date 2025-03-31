@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as MplPolygon
 
@@ -58,6 +59,8 @@ def draw_tree(ax, node, color='b', live_plot=False, label=None):
             linewidth=2,
             label=label
         )
+
+
         if live_plot:
             plt.pause(0.01)
 
@@ -71,3 +74,31 @@ def draw_path(ax, path, color='green', linewidth=3, linestyle='-', label=None):
             linewidth=linewidth,
             label=label
         )
+
+
+def save_path_plot(planner, algorithm_name, run_index, output_dir="results/"):
+    os.makedirs(output_dir, exist_ok=True)
+    fig, ax = plt.subplots()
+
+    setup_visualization(
+        ax,
+        planner.agents,
+        planner.goal_node,
+        planner.map_size,
+        planner.obstacle_type,
+        planner.obstacles
+    )
+                        
+
+    for agent in planner.agents:
+        
+        for node in agent.nodes:
+            draw_tree(ax, node, color=agent.color)
+        if agent.path:
+            draw_path(ax, agent.path, linestyle='--', color="red", label=f"Agent {agent.id}")
+            
+    ax.set_title(f"{algorithm_name.upper()} - Run {run_index + 1}")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(f"{output_dir}/{algorithm_name}_run{run_index + 1}.png")
+    plt.close()

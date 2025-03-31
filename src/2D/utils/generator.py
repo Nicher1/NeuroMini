@@ -37,33 +37,20 @@ def generate_random_polygons(map_size, num_polygons=5, seed=None):
 
     return polygons
 
-def generate_fixed_rectangles(map_size):
+def generate_random_rectangles(map_size, num_rects=10, min_size=5, max_size=20):
     obstacles = []
 
-    # Define 5 rectangles spaced out across the map
-    spacing_x = map_size[0] // 6
-    spacing_y = map_size[1] // 6
+    for _ in range(num_rects):
+        w = random.randint(min_size, max_size)
+        h = random.randint(min_size, max_size)
 
-    sizes = [
-        (10, 10),
-        (12, 8),
-        (8, 12),
-        (10, 10),
-        (6, 14)
-    ]
-
-    for i in range(5):
-        x = spacing_x * (i + 1) - sizes[i][0] // 2
-        y = spacing_y * (i + 1) - sizes[i][1] // 2
-        w, h = sizes[i]
-
-        # Ensure they don’t exceed map bounds
-        x = min(x, map_size[0] - w)
-        y = min(y, map_size[1] - h)
+        x = random.randint(0, map_size[0] - w)
+        y = random.randint(0, map_size[1] - h)
 
         obstacles.append((x, y, w, h))
 
     return obstacles
+
 # In here there are various functions that you can use to generate map to test RRT.
 def generate_labyrinth_maze(map_size, wall_size=3, cell_size=20):
     width, height = map_size[0] // cell_size, map_size[1] // cell_size
@@ -137,7 +124,7 @@ def generate_map(map_type, map_size, num_obstacles=None):
     if map_type == "diagonal":
         return generate_diagonal_wall(map_size)
     elif map_type == "rectangles":
-        return generate_fixed_rectangles(map_size)
+        return generate_random_rectangles(map_size, num_rects=num_obstacles)
     elif map_type == "random_polygons":
         return generate_random_polygons(map_size, num_obstacles)
     elif map_type == "labyrinth":

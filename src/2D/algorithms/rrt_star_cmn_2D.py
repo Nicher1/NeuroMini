@@ -12,8 +12,9 @@ from utils.plotter import *
 
 # Node class representing a state in the space
 class Node:
-    def __init__(self, id, x, y):
+    def __init__(self, id, agent, x, y):
         self.id = id
+        self.agent = agent # 0, 1, 2 ... -1 means no agent (goal node)
         self.x = x
         self.y = y
         self.parent = None
@@ -30,8 +31,8 @@ class CMNRRTStar:
         self.obstacle_type = "wall"
         self.goal_region_radius = 4
 
-        self.start_node = Node("start", start_position[0], start_position[1])
-        self.goal_node = Node("goal", goal_position[0], goal_position[1])
+        self.start_node = Node("start", 0, start_position[0], start_position[1])
+        self.goal_node = Node("goal", -1, goal_position[0], goal_position[1])
 
 
         
@@ -76,7 +77,8 @@ class CMNRRTStar:
     # and based on this the node is gonna be used or not
     def generate_agents(self):
 
-        for i in range(0, self.num_agents - 1):
+        # Starts from 1 because Agent 0 is created in the starting node
+        for i in range(1, self.num_agents - 1):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
 
@@ -85,7 +87,7 @@ class CMNRRTStar:
                 x = random.uniform(0, self.map_size[0])
                 y = random.uniform(0, self.map_size[1])
 
-            initial_agent_node = Node("agent_" + str(i), x, y)
+            initial_agent_node = Node("agent_" + str(i), i, x, y)
             if self.check_cost_of_agent(initial_agent_node):
                 
                 self.agents.append(initial_agent_node)
@@ -248,6 +250,7 @@ class CMNRRTStar:
 
         return True  # no collision
     
+
     def reached_goal(self, node, goal):
         return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius
     

@@ -7,7 +7,7 @@ import random
 import time
 import io
 import base64
-
+import threading
 from utils.generator import generate_map
 from utils.plotter import *
 
@@ -55,7 +55,7 @@ class Agent:
         self.nodes.append(node)
 
 # Multi-Agent RRT* (CMN-RRT*)
-class RRTStar:
+class CMNRRTStarParallel:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
                     step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, map_obstacles=None):
@@ -83,11 +83,12 @@ class RRTStar:
         self.max_iter = max_iter
         self.search_radius = 4.0
         self.link_radius = 10.0
+        self.lock = threading.Lock()
         
         
         # Initialise agents
         self.agents = [Agent(0, self.start_node, AGENT_COLORS[0 % len(AGENT_COLORS)])]
-        self.num_agents = 1
+        self.num_agents = num_agents
         
         # Agent generation variables
         self.cost_threshold =  10 # (self.map_size[0] + self.map_size[1]) / 10
@@ -246,88 +247,45 @@ class RRTStar:
             length += math.hypot(dx, dy)
         return length
     
+    def expand_agent_tree(self, agent):
+        # One full iteration from your current plan() logic for a single agent
+        rand_node = self.get_weighted_random_node(agent)
+        nearest_node = self.get_nearest_node(agent.nodes, rand_node)
+        new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
+
+        if self.is_collision_free(nearest_node, new_node):
+            near_nodes = self.find_near_nodes(agent.nodes, new_node)
+            new_node = self.choose_parent(agent.id, near_nodes, new_node)
+            agent.add_node(new_node)
+            self.rewire(agent.nodes, near_nodes, new_node)
+            self.check_and_link_agents(agent, new_node)
+
+            if self.reached_goal(new_node, self.goal_node):
+                with self.lock:
+                    agent.goal_reached = True
+                    agent.goal_node = new_node
+                    agent.path = self.generate_final_path(new_node)
+
     # Main Algorithm is here - from where we call functions.
     def plan(self):
-        # Start the timer for each agent
-        start_time = time.time()
-        for agent in self.agents:
-            agent.start_time = start_time
+     
+        threads = []
 
-        for iter_count in range(self.max_iter):
-            for agent in self.agents:
-                
+        def run_agent(agent):
+            for _ in range(self.max_iter):
                 if agent.goal_reached:
-                    
-                    if agent.results["time"] != 0.0:     
-                        agent.results["time"] = time.time() - agent.start_time
+                    return
+                self.expand_agent_tree(agent)
 
-                    continue
+        for agent in self.agents:
+            thread = threading.Thread(target=run_agent, args=(agent,))
+            threads.append(thread)
+            thread.start()
 
-                # Generate a random node arround the map - favoring goal direction
-                rand_node = self.get_weighted_random_node(agent)
-                # Get the nearest node to the random node
-                nearest_node = self.get_nearest_node(agent.nodes, rand_node)
-                # New node appears on the map - this is to be linked with the agent
-                exploratory_step = self.step_size * (2 if random.random() < 0.1 else 1)
-                new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
+        for thread in threads:
+            thread.join()
 
-                if self.is_collision_free(nearest_node, new_node):
-                    
-                    # Rewireing
-                    near_nodes = self.find_near_nodes(agent.nodes, new_node)                    
-                    new_node = self.choose_parent(agent.id, near_nodes, new_node)
-                    agent.add_node(new_node)
-                    self.rewire(agent.nodes, near_nodes, new_node)
-                    
-                    draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
-                    
-                    # # Check if agent met another agent     
-                    # merged = self.check_and_merge_agents(agent, new_node)
-                    if self.reached_goal(new_node, self.goal_node):
-                        
-
-                        agent.path = self.generate_final_path(new_node)
-                        agent.goal_reached = True
-
-                        agent.goal_node = new_node
-
-                      
-                        # Save result info
-                        path_len = self.compute_path_length(agent.path)
-
-                        agent.results["iterations"] = iter_count
-                        agent.results["path_length"] = path_len
-
-                    
-                    # if merged:
-                    #     draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path") 
-                    #     agent.results["linked"] = True 
-                        
-
-                    #     break  # St
-                   
-                  
-                   
-                
-                   
-            if len(self.agents) == 1 and self.agents[0].goal_reached:
-                break
-
-            if any(a.goal_reached for a in self.agents) and len(self.agents) <= 2:
-                 break
-
-        self.total_planning_time = time.time() - start_time
-        self.agents[0].results["time"] = time.time() - self.agents[0].start_time
-        # print(f"Total planning time: {self.total_planning_time:.2f} seconds")
         self.compute_linked_path_length()
-        # print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
-
-      
-        # print("\n--- Agent Results ---")
-        # for agent in self.agents:
-        #     print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
-
-                
     
     def steer(self, agent_id, from_node, to_node, step_size):
         theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
@@ -434,36 +392,32 @@ class RRTStar:
     def check_and_link_agents(self, agent_a, new_node):
         for agent_b in self.agents:
             if agent_b.id == agent_a.id:
-                continue  # skip self
+                continue
 
             for node_b in agent_b.nodes:
                 if self.distance(new_node, node_b) <= self.link_radius:
-                    
                     if not self.is_collision_free(new_node, node_b):
-                       
                         continue
-                    
                     if not agent_b.goal_reached:
-                        continue  # we only link to agents that reached the goal
+                        continue
 
-                    # Create linked path: A to meeting point, then B to goal
-                    path_to_meeting = self.generate_final_path(new_node)
-                    path_from_meeting = self.generate_final_path(agent_b.goal_node, start_node=node_b)
+                    # Lock this critical section
+                    with self.lock:
+                        # double check goal reached status inside lock
+                        if not agent_a.goal_reached:
+                            path_to_meeting = self.generate_final_path(new_node)
+                            path_from_meeting = self.generate_final_path(agent_b.goal_node, start_node=node_b)
+                            full_linked_path = path_to_meeting + path_from_meeting
 
-                    full_linked_path = path_to_meeting + path_from_meeting
-
-                    linked_path_length = self.compute_path_length(full_linked_path)
-                    
-                    # If agent A has no goal path or this is better
-                    if not agent_a.goal_reached or linked_path_length < agent_a.results["path_length"]:
-                        # Accept the link
-                        agent_a.goal_reached = True
-                        agent_a.linked_from = agent_b
-                        agent_b.linked_to.append(agent_a)
-                        agent_a.path = full_linked_path
-                        agent_a.results["path_length"] = linked_path_length
-                        agent_a.results["linked"] = True
-                        return True
+                            linked_length = self.compute_path_length(full_linked_path)
+                            agent_a.path = full_linked_path
+                            agent_a.goal_reached = True
+                            agent_a.goal_node = agent_b.goal_node
+                            agent_a.results["linked"] = True
+                            agent_a.results["path_length"] = linked_length
+                            agent_a.linked_from = agent_b
+                            agent_b.linked_to.append(agent_a)
+                            return True
         return False
 
     

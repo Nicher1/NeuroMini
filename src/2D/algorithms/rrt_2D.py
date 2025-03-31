@@ -13,25 +13,50 @@ from utils.plotter import *
 
 # Node class representing a state in the space
 class Node:
-    def __init__(self, x, y):
+    def __init__(self, label, agent_id, x, y):
+        self.label = label
+        self.agent_id = agent_id # 0, 1, 2 ... -1 means no agent (goal node)
         self.x = x
         self.y = y
         self.parent = None
         self.cost = 0
 
-# Multi-Agent RRT* (CMN-RRT*)
+class Agent:
+    def __init__(self, id, node, color='blue'):
+        self.id = id
+        self.initial_node = node
+        self.nodes = [node]
+        self.goal_reached = False
+        self.goal_node = None
+        self.path = []
+        self.color = color
+        self.start_time = 0.0
+        self.results = {
+            "iterations": 0,
+            "path_length": float('inf'),
+            "time": 0.0,
+        }
+
+    def add_node(self, node):
+        self.nodes.append(node)
+
 class RRT:
-    def __init__(self, start_position, goal_position, num_agents, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False):
+    def __init__(self, start_position, goal_position, num_agents, num_obstacles, map_size, map_type="empty", step_size=1.0, max_iter=500, live_plot=False, map_obstacles=[]):
         
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        self.obstacles = generate_map(map_type, map_size)
-        self.obstacle_type = "wall"
+        self.obstacles = map_obstacles
+        
+        if map_type == "random_polygons":
+            self.obstacle_type = "polygon"
+        else:
+            self.obstacle_type = "wall"
+
         self.goal_region_radius = 4
 
-        self.start_node = Node(start_position[0], start_position[1])
-        self.goal_node = Node(goal_position[0], goal_position[1])
+        self.start_node = Node("start", 0, start_position[0], start_position[1])
+        self.goal_node = Node("goal", -1, goal_position[0], goal_position[1])
         
         # Algorithm properties
         self.step_size = step_size
@@ -39,38 +64,67 @@ class RRT:
         self.search_radius = 4.0
         
         # Initialise agents
-        self.agents = [self.start_node]
-        self.num_agents = num_agents
-        self.trees = [[self.agents[i]] for i in range(num_agents)]
-        self.paths = [None] * num_agents
-        self.goal_reached = [False] * num_agents
-
-        # Results per agent
-        self.agents_results = {
-            i: {
-                "iterations": 0,
-                "path_length": 0.0,
-                "time": 0.0
-            } for i in range(num_agents)
-        }
+        self.agents = [Agent(0, self.start_node, AGENT_COLORS[0 % len(AGENT_COLORS)])]
+        # for i in range(num_agents):
+        #     node = Node(start_position[0], start_position[1])
+        #     color = AGENT_COLORS[i % len(AGENT_COLORS)] if 'AGENT_COLORS' in globals() else 'blue'
+        #     agent = Agent(i, node, color=color)
+        #     self.agents.append(agent)
 
         # Visualization setup
         self.live_plot = live_plot
         self.fig, self.ax = plt.subplots()
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
+
+        self.total_planning_time = 0
             
 
-    def get_weighted_random_node(self, agent_id):
+    # --- START ---- Exploration Functions ---- 
+    # Get the distance between two nodes.
+    def distance(self, node1, node2):
+        return math.hypot(node1.x - node2.x, node1.y - node2.y)
 
-        if random.random() < 0.2:
-            return Node(self.goal_node.x, self.goal_node.y)
+
+    def dynamic_goal_bias(self, agent):
+        if len(agent.nodes) < 10:
+            return 0.01  # explore early
+        elif agent.goal_reached:
+            return 0.0
         else:
+            return 0.1  # gradually increase    
+
+    def get_exploration_node(self, agent):
+        for _ in range(30):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
-            if random.random() < 0.7:
-                x = (x + self.goal_node.x) / 2
-                y = (y + self.goal_node.y) / 2
-            return Node(x, y)
+            rand_node = Node("explore", agent.id, x, y)
+   
+            # Ensure sample is far from current tree 
+            nearest = self.get_nearest_node(agent.nodes, rand_node)
+            dist = self.distance(nearest, rand_node)
+            if dist > self.step_size * 1.5:
+                return rand_node
+
+        # fallback
+        return Node("explore", agent.id, random.uniform(0, self.map_size[0]), random.uniform(0, self.map_size[1]))
+
+
+    # This function gets creates a random node anywhere on the map
+    # The idea is to try to move towards that node and explore.
+    # This is part of the random exploration part
+    def get_weighted_random_node(self, agent):
+        # Dynamic goal bias increases as agent's tree grows
+        if agent.goal_reached:
+            return self.goal_node
+
+        goal_bias = self.dynamic_goal_bias(agent)
+        if random.random() < goal_bias:
+            return self.goal_node
+
+        # Exploration-aware sample
+        return self.get_exploration_node(agent)
+    
+    # --- END ---- Exploration Functions ---- 
     
     def get_nearest_node(self, tree, rand_node):
         points = np.array([[node.x, node.y] for node in tree])
@@ -87,48 +141,49 @@ class RRT:
         return length
     
     def plan(self):
-        start_time = [time.time() for _ in range(self.num_agents)]
+        for agent in self.agents:
+            agent.start_time = time.time() 
 
         for iter_count in range(self.max_iter):
-            for agent_id in range(self.num_agents):
-                if self.goal_reached[agent_id]:
+            for agent in self.agents:
+                if agent.goal_reached:
                     continue
 
-                rand_node = self.get_weighted_random_node(agent_id)
-                nearest_node = self.get_nearest_node(self.trees[agent_id], rand_node)
-                new_node = self.steer(nearest_node, rand_node)
+                rand_node = self.get_weighted_random_node(agent)
+                nearest_node = self.get_nearest_node(agent.nodes, rand_node)
+                new_node = self.steer(agent.id, nearest_node, rand_node, self.step_size)
 
                 if self.is_collision_free(nearest_node, new_node):
-                    self.trees[agent_id].append(new_node)
+          
+                    agent.add_node(new_node)
                     new_node.parent = nearest_node
-                    draw_tree(self.ax, new_node, live_plot=self.live_plot)
+                    
+                    draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
 
                     if self.reached_goal(new_node, self.goal_node):
-                        self.paths[agent_id] = self.generate_final_path(new_node)
-                        self.goal_reached[agent_id] = True
+                        agent.path = self.generate_final_path(new_node)
+                        agent.goal_reached = True
 
                         # Save result info
-                        duration = time.time() - start_time[agent_id]
-                        path_len = self.compute_path_length(self.paths[agent_id])
+                        duration = time.time() - agent.start_time
+                        path_len = self.compute_path_length(agent.path)
 
-                        self.agents_results[agent_id]["iterations"] = iter_count
-                        self.agents_results[agent_id]["path_length"] = path_len
-                        self.agents_results[agent_id]["time"] = duration
+                        agent.results["iterations"] = iter_count
+                        agent.results["path_length"] = path_len
+                        agent.results["time"] = duration
+                        self.total_planning_time = duration
 
-                        draw_path(self.ax, self.paths, agent_id)
+                        draw_path(self.ax, agent.path, color=agent.color)
 
 
-        print("\n--- Agent Results ---")
-        for agent_id, result in self.agents_results.items():
-            print(f"Agent {agent_id}:")
-            print(f"  Iterations:   {result['iterations']}")
-            print(f"  Path Length:  {result['path_length']:.2f}")
-            print(f"  Time Taken:   {result['time']:.2f} seconds")
-                
+        # print("\n--- Agent Results ---")
+        # for agent in self.agents:
+        #     print(f"Agent {agent.id} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']}")
+
     
-    def steer(self, from_node, to_node):
+    def steer(self, agent_id, from_node, to_node, step_size):
         theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
-        new_node = Node(from_node.x + self.step_size * math.cos(theta),
+        new_node = Node("node", agent_id, from_node.x + step_size * math.cos(theta),
                         from_node.y + self.step_size * math.sin(theta))
         new_node.parent = from_node
         return new_node
@@ -138,31 +193,44 @@ class RRT:
 
     def segments_intersect(self, A, B, C, D):
         return self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D)
-
+    
+    def segment_intersects_polygon(self, p1, p2, path, num_samples=10):
+        for i in range(num_samples + 1):
+            t = i / num_samples
+            x = p1[0] + t * (p2[0] - p1[0])
+            y = p1[1] + t * (p2[1] - p1[1])
+            if path.contains_point((x, y)):
+                return True
+        return False
     def is_collision_free(self, from_node, to_node):
-        # For each wall
-        for (x_min, y_min, width, height) in self.obstacles:
-            x_max = x_min + width
-            y_max = y_min + height
+        p1 = (from_node.x, from_node.y)
+        p2 = (to_node.x, to_node.y)
 
-            # Break wall into 4 edges as line segments
-            wall_edges = [
-                ((x_min, y_min), (x_max, y_min)),  # bottom
-                ((x_max, y_min), (x_max, y_max)),  # right
-                ((x_max, y_max), (x_min, y_max)),  # top
-                ((x_min, y_max), (x_min, y_min)),  # left
-            ]
+        if self.obstacle_type == "wall":
+            for (x_min, y_min, width, height) in self.obstacles:
+                x_max = x_min + width
+                y_max = y_min + height
 
-            # Line segment from agent's path
-            p1 = (from_node.x, from_node.y)
-            p2 = (to_node.x, to_node.y)
+                wall_edges = [
+                    ((x_min, y_min), (x_max, y_min)),  # bottom
+                    ((x_max, y_min), (x_max, y_max)),  # right
+                    ((x_max, y_max), (x_min, y_max)),  # top
+                    ((x_min, y_max), (x_min, y_min)),  # left
+                ]
 
-            # Check for intersection with any wall edge
-            for (w1, w2) in wall_edges:
-                if self.segments_intersect(p1, p2, w1, w2):
-                    return False  # collision
+                for (w1, w2) in wall_edges:
+                    if self.segments_intersect(p1, p2, w1, w2):
+                        return False  # collision
 
-        return True  # no collision
+        elif self.obstacle_type == "polygon":
+            from matplotlib.path import Path
+            for polygon in self.obstacles:
+                path = Path(polygon)
+                # Sample the segment with intermediate points to check
+                if self.segment_intersects_polygon(p1, p2, path):
+                    return False
+
+        return True
     
     def reached_goal(self, node, goal):
         return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius

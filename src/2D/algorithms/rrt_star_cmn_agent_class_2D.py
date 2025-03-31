@@ -35,8 +35,9 @@ class Agent:
         self.goal_reached = False
         self.goal_node = None
         
-        # With what agent connects?
-        self.linked_to = None
+        # CMN Variables
+        self.linked_from = None   # Parent agent (the one that links to this agent)
+        self.linked_to = []       # List of agents that linked from this agent
         
         # Results per agent
         self.start_time = 0.0
@@ -57,13 +58,16 @@ class Agent:
 class CMNRRTStarV2:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
-                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, ):
+                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, map_obstacles=None):
         
 
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
-        self.obstacles = generate_map(map_type, map_size, num_obstacles)
+        if map_obstacles == None:
+            self.obstacles = generate_map(map_type, map_size, num_obstacles)
+        else:
+            self.obstacles = map_obstacles
         if map_type == "random_polygons":
             self.obstacle_type = "polygon"
         else:
@@ -80,13 +84,14 @@ class CMNRRTStarV2:
         self.search_radius = 4.0
         self.link_radius = 10.0
         
+        
         # Initialise agents
         self.agents = [Agent(0, self.start_node, AGENT_COLORS[0 % len(AGENT_COLORS)])]
         self.num_agents = num_agents
         
         # Agent generation variables
-        self.cost_threshold = (self.map_size[0] + self.map_size[1]) / 2
-        self.agent_node_radius = 10 # Helps checking collisions for agent placement
+        self.cost_threshold =  10 # (self.map_size[0] + self.map_size[1]) / 10
+        self.agent_node_radius = 20 # Helps checking collisions for agent placement
 
         self.generate_agents()
 
@@ -99,9 +104,18 @@ class CMNRRTStarV2:
 
         self.live_plot = live_plot
         self.debug = debug
-
         self.fig, self.ax = plt.subplots()
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
+
+        # Planning results
+        self.total_planning_time = 0
+        self.total_path_length = float('inf')
+        self.contributing_agents = []
+
+
+        self.goal_merge_threshold = 30  # or tune based on map size
+        
+
 
 
     # This function generates self.num_agents. These agents are actually
@@ -115,23 +129,20 @@ class CMNRRTStarV2:
         for i in range(1, self.num_agents):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
+            initial_agent_node = Node("start", i, x, y)
 
             # Repeat until the agent is placed on the map
-            while not self.is_agent_collision_free(x, y):
+            while not self.is_agent_collision_free(x, y) or not self.check_cost_of_agent(initial_agent_node):
                 x = random.uniform(0, self.map_size[0])
                 y = random.uniform(0, self.map_size[1])
-
-            initial_agent_node = Node("start", i, x, y)
-            if self.check_cost_of_agent(initial_agent_node):
-                color = AGENT_COLORS[i % len(AGENT_COLORS)]
-                agent = Agent(i, initial_agent_node, color)
-                
-                self.agents.append(agent)
-            else:
-                # Remove unworthy agent from the list
-                self.num_agents -= 1
-        print(f"# ------- Based on the distance only {self.num_agents} are useful.")
-
+                initial_agent_node = Node("start", i, x, y)
+        
+                    
+            color = AGENT_COLORS[i % len(AGENT_COLORS)]
+            agent = Agent(i, initial_agent_node, color)
+            
+            self.agents.append(agent)    
+   
    
     # This function checks if a node is collision free. That means no collision with
     # any obstacle or any other initial nodes
@@ -156,7 +167,8 @@ class CMNRRTStarV2:
             cx = other_agent.initial_node.x
             cy = other_agent.initial_node.y
             if (x - cx) ** 2 + (x - cy) ** 2  <= self.agent_node_radius ** 2:
-                print(f"# ------- Agent at {x} {y} collides with {other_agent.id}")
+                # if self.debug:
+                #     print(f"# ------- Agent at {x} {y} collides with {other_agent.id}")
                 return False
 
         return True
@@ -171,10 +183,10 @@ class CMNRRTStarV2:
         distance = abs((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1))
         distance = distance / math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-        if distance >= self.cost_threshold:
+        if distance > self.cost_threshold:
             return False
         return True
-        pass
+        
 
     # --- START ---- Exploration Functions ---- 
     def dynamic_goal_bias(self, agent):
@@ -198,7 +210,7 @@ class CMNRRTStarV2:
                 return rand_node
 
         # fallback
-        return Node(random.uniform(0, self.map_size[0]), random.uniform(0, self.map_size[1]))
+        return Node("explore", agent.id, random.uniform(0, self.map_size[0]), random.uniform(0, self.map_size[1]))
 
 
     # This function gets creates a random node anywhere on the map
@@ -237,13 +249,18 @@ class CMNRRTStarV2:
     # Main Algorithm is here - from where we call functions.
     def plan(self):
         # Start the timer for each agent
+        start_time = time.time()
         for agent in self.agents:
-            agent.start_time = time.time() 
+            agent.start_time = start_time
 
         for iter_count in range(self.max_iter):
             for agent in self.agents:
                 
                 if agent.goal_reached:
+                    
+                    if agent.results["time"] != 0.0:     
+                        agent.results["time"] = time.time() - agent.start_time
+
                     continue
 
                 # Generate a random node arround the map - favoring goal direction
@@ -256,7 +273,6 @@ class CMNRRTStarV2:
 
                 if self.is_collision_free(nearest_node, new_node):
                     
-
                     # Rewireing
                     near_nodes = self.find_near_nodes(agent.nodes, new_node)                    
                     new_node = self.choose_parent(agent.id, near_nodes, new_node)
@@ -264,44 +280,52 @@ class CMNRRTStarV2:
                     self.rewire(agent.nodes, near_nodes, new_node)
                     
                     draw_tree(self.ax, new_node, color=agent.color, live_plot=self.live_plot)
-
-                    # # Check if agent met another agent
-                   
-                    linked = self.check_and_link_agents(agent, new_node)
-                    if linked:
-                        if self.debug:           
-                            print(f"Link Agent {agent.id}")
-
-                        draw_path(self.ax, agent.path, color="red")
-                        
                     
-                 
+                    # # Check if agent met another agent     
+                    # merged = self.check_and_merge_agents(agent, new_node)
                     if self.reached_goal(new_node, self.goal_node):
-                        if self.debug:
-                            print(f"Agent {agent.id} reached the goal")
+                        
 
                         agent.path = self.generate_final_path(new_node)
                         agent.goal_reached = True
+
                         agent.goal_node = new_node
 
                       
                         # Save result info
-                        duration = time.time() - agent.start_time
                         path_len = self.compute_path_length(agent.path)
 
                         agent.results["iterations"] = iter_count
                         agent.results["path_length"] = path_len
-                        agent.results["time"] = duration
 
-                        if agent.results["linked"]:
-                            draw_path(self.ax, agent.path, color='black', linestyle='--', label=f"Agent {agent.id} Linked Path")
-                        else:
-                            draw_path(self.ax, agent.path, color="blue", label=f"Agent {agent.id} Path")
+                    
+                    # if merged:
+                    #     draw_path(self.ax, agent.path, color='red', linestyle='--', label=f"Agent {agent.id} Linked Path") 
+                    #     agent.results["linked"] = True 
+                        
 
+                    #     break  # St
+                   
+                  
+                   
+                
+                   
+            if len(self.agents) == 1 and self.agents[0].goal_reached:
+                break
 
-        print("\n--- Agent Results ---")
-        for agent in self.agents:
-            print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']}")
+            if any(a.goal_reached for a in self.agents) and len(self.agents) <= 2:
+                 break
+
+        self.total_planning_time = time.time() - start_time
+        self.agents[0].results["time"] = time.time() - self.agents[0].start_time
+        # print(f"Total planning time: {self.total_planning_time:.2f} seconds")
+        self.compute_linked_path_length()
+        # print(f"Linked Path Tree Total Length: {self.total_path_length:.2f}")
+
+      
+        # print("\n--- Agent Results ---")
+        # for agent in self.agents:
+        #     print(f"Agent {agent.id} | Linked: {agent.results['linked']} | Path length: {agent.results['path_length']:.2f} | Time: {agent.results['time']:.3f} seconds")
 
                 
     
@@ -429,17 +453,19 @@ class CMNRRTStarV2:
                     full_linked_path = path_to_meeting + path_from_meeting
 
                     linked_path_length = self.compute_path_length(full_linked_path)
-
+                    
                     # If agent A has no goal path or this is better
                     if not agent_a.goal_reached or linked_path_length < agent_a.results["path_length"]:
                         # Accept the link
                         agent_a.goal_reached = True
-                        agent_a.linked_to = agent_b.id
+                        agent_a.linked_from = agent_b
+                        agent_b.linked_to.append(agent_a)
                         agent_a.path = full_linked_path
                         agent_a.results["path_length"] = linked_path_length
                         agent_a.results["linked"] = True
                         return True
         return False
+
     
     def generate_linked_path(self, agent_a, meeting_node_a, meeting_node_b, agent_b):
         # Path from agent A's tree to meeting point
@@ -455,6 +481,33 @@ class CMNRRTStarV2:
 
         # Combine the paths
         return path_to_meet + path_from_meet
+
+    def compute_linked_path_length(self):
+        def trace_linked_path(agent):
+            path = []
+            current = agent
+            while current:
+                if current.path:
+                    path = current.path + path  # prepend
+                current = current.linked_from
+            return path
+
+        best_path = None
+        best_length = float('inf')
+
+        # Try all agents that reached the goal (may be linked or not)
+        for agent in self.agents:
+            if agent.goal_reached and agent.path:
+                full_path = trace_linked_path(agent)
+                length = self.compute_path_length(full_path)
+
+                if length < best_length:
+                    best_length = length
+                    best_path = full_path
+
+        self.total_path_length = best_length
+        self.best_collaborative_path = best_path
+
 
     def animate(self):
         plt.show()
