@@ -43,28 +43,51 @@ The algorithms can be benchmarked on five predefined map types designed to evalu
 5. `random_polygons` (irregular polygon-shaped obstacles)
     
 
-### Example Usage
+### Running Individual Tests
 
-Run an algorithm using the following command format:
+You can perform individual algorithm tests using the `main.py` script:
 
 ```bash
-./main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt --live_plot
+python main.py --num_agents 1 --map_size 100 100 --step_size 1.0 --map_type labyrinth --algorithm rrt --live_plot
 ```
 
 Remove the `--live_plot` argument for faster execution without visualisation.
 
+### Benchmarking
+
+To run multiple benchmark tests for statistical evaluation, use `benchmark.py`:
+
+```bash
+python benchmark.py --num_runs 10 --num_agents 3 --map_size 200 200 --step_size 1.0 --map_type labyrinth --num_obstacles 10
+```
+
+- `--num_runs`: Number of repeated tests for averaging results.
+    
+- `--num_agents`: Number of simultaneous agents (relevant for CMN-RRT*).
+    
+
+Results are saved in the `results/` directory, including CSV, JSON summaries, and visual plots.
+
+### Running All Tests Automatically
+
+The provided bash script `run_all.sh` automates testing across all algorithms and maps, but note that this comprehensive benchmarking process takes significantly more time:
+
+```bash
+bash run_all.sh
+```
+
 ### Benchmarking and Performance
 
-The implemented algorithms were benchmarked on all five maps, evaluating:
+The algorithms are evaluated on:
 
-- **Success Rate** (finding a valid path)
+- **Success Rate**
     
-- **Planning Time** (computation speed)
+- **Planning Time**
     
-- **Path Length** (optimality and efficiency)
+- **Path Length**
     
 
-CMN-RRT* consistently demonstrated the shortest path lengths across all environments, outperforming both RRT and RRT* in robustness and path optimality, especially in complex scenarios.
+CMN-RRT* demonstrates superior path optimality and robustness, particularly in complex environments.
 
 ### Algorithm Examples
 
@@ -76,4 +99,4 @@ CMN-RRT* consistently demonstrated the shortest path lengths across all environm
 
 ![rrt_star](https://github.com/user-attachments/assets/c5d4883a-0271-4c5a-b31a-70620f57a707)
 
-#### CMN-RRT***
+#### CMN-RRT*
