@@ -1,7 +1,7 @@
 #!/bin/bash
 
 AGENTS=6
-MAP_SIZE="200 200"
+MAP_SIZE="100 100"
 STEP_SIZE=5.0
 OBSTACLES=12
 RUNS=10  # You can change this if needed

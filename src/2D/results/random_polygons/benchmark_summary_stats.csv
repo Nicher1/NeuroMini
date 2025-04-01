@@ -1,0 +1,4 @@
+Algorithm,Map Type,Planning Time Mean,Planning Time Std,Planning Time Min,Planning Time Max,Path Length Mean,Path Length Std,Path Length Min,Path Length Max,Iterations Mean,Iterations Std,Iterations Min,Iterations Max,Success Rate,NPS Score
+rrt,random_polygons,0.22,0.11,0.12,0.47,247.00,27.00,215.00,285.00,254.50,134.16,135.00,574.00,100.00,0.0183
+rrt_star,random_polygons,0.40,0.10,0.25,0.54,228.84,18.78,205.95,252.35,234.50,70.42,145.00,333.00,100.00,0.0198
+cmn_rrt_star,random_polygons,0.48,0.19,0.33,0.85,229.48,23.24,204.32,273.08,88.80,56.27,28.00,219.00,100.00,0.0464

@@ -1,0 +1,4 @@
+Algorithm,Map Type,Planning Time Mean,Planning Time Std,Planning Time Min,Planning Time Max,Path Length Mean,Path Length Std,Path Length Min,Path Length Max,Iterations Mean,Iterations Std,Iterations Min,Iterations Max,Success Rate,NPS Score
+rrt,labyrinth,0.34,0.16,0.17,0.69,348.50,34.40,310.00,410.00,1152.40,372.45,663.00,1873.00,100.00,0.0042
+rrt_star,labyrinth,0.33,0.15,0.18,0.68,325.15,24.38,298.32,386.02,1006.20,375.70,454.00,1806.00,100.00,0.0049
+cmn_rrt_star,labyrinth,0.91,0.23,0.62,1.31,317.14,27.63,288.79,375.07,657.00,217.42,391.00,1103.00,100.00,0.0073
