@@ -5,9 +5,9 @@ import argparse
 import statistics
 import numpy as np
 import matplotlib.pyplot as plt
-from algorithms.rrt_2D import RRT
-from algorithms.rrt_star_2D import RRTStar
-from algorithms.rrt_star_cmn_agent_class_2D import CMNRRTStar
+from algorithms.rrt_3D import RRT
+from algorithms.rrt_star_3D import RRTStar
+from algorithms.rrt_star_cmn_agent_class_3D import CMNRRTStar
 from tqdm import tqdm
 from utils.plotter import *
 from utils.generator import *

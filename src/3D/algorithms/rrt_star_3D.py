@@ -7,17 +7,20 @@ import random
 import time
 import io
 import base64
+from typing import Optional
+from mpl_toolkits.mplot3d import Axes3D
 
 from utils.generator import generate_map
 from utils.plotter import *
 
 # Node class representing a state in the space
 class Node:
-    def __init__(self, label, agent_id, x, y):
+    def __init__(self, label, agent_id, x, y, z):
         self.label = label
         self.agent_id = agent_id # 0, 1, 2 ... -1 means no agent (goal node)
         self.x = x
         self.y = y
+        self.z = z
         self.parent = None
         self.cost = 0
 
@@ -33,7 +36,7 @@ class Agent:
         self.path = []
 
         self.goal_reached = False
-        self.goal_node = None
+        self.goal_node: Optional[Node] = None
         
         # CMN Variables
         self.linked_from = None   # Parent agent (the one that links to this agent)
@@ -58,12 +61,13 @@ class Agent:
 class RRTStar:
     def __init__(self, start_position, goal_position, num_obstacles,
                   num_agents, map_size, map_type="empty",
-                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, pregenerate_map=None):
+                    step_size=1.0, max_iter=500, live_plot=False, debug=False, fig=None, ax=None, pregenerate_map=None, z_height = None):
         
 
         # Map properties
         self.map_size = map_size
         self.map_type = map_type
+        self.z_height = z_height
         if pregenerate_map == None:
             self.obstacles = generate_map(map_type, map_size, num_obstacles)
         else:
@@ -75,8 +79,8 @@ class RRTStar:
 
         self.goal_region_radius = 4
 
-        self.start_node = Node("start", 0, start_position[0], start_position[1])
-        self.goal_node = Node("goal", -1, goal_position[0], goal_position[1])
+        self.start_node = Node("start", 0, start_position[0], start_position[1], start_position[2])
+        self.goal_node = Node("goal", -1, goal_position[0], goal_position[1], goal_position[2])
   
         # Algorithm variables
         self.step_size = step_size
@@ -104,7 +108,8 @@ class RRTStar:
 
         self.live_plot = live_plot
         self.debug = debug
-        self.fig, self.ax = plt.subplots()
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
         setup_visualization(self.ax, self.agents, self.goal_node, self.map_size, self.obstacle_type, self.obstacles)
 
         # Planning results
@@ -129,13 +134,15 @@ class RRTStar:
         for i in range(1, self.num_agents):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
-            initial_agent_node = Node("start", i, x, y)
+            z = random.uniform(0, self.map_size[2])
+            initial_agent_node = Node("start", i, x, y, z)
 
             # Repeat until the agent is placed on the map
-            while not self.is_agent_collision_free(x, y) or not self.check_cost_of_agent(initial_agent_node):
+            while not self.is_agent_collision_free(x, y, z) or not self.check_cost_of_agent(initial_agent_node):
                 x = random.uniform(0, self.map_size[0])
                 y = random.uniform(0, self.map_size[1])
-                initial_agent_node = Node("start", i, x, y)
+                z = random.uniform(0, self.map_size[2])
+                initial_agent_node = Node("start", i, x, y, z)
         
                     
             color = AGENT_COLORS[i % len(AGENT_COLORS)]
@@ -146,33 +153,63 @@ class RRTStar:
    
     # This function checks if a node is collision free. That means no collision with
     # any obstacle or any other initial nodes
-    def is_agent_collision_free(self, x, y):
-
-        # Checking if nodes collide with any walls
+   
+    def is_agent_collision_free(self, x, y, z):
+        # Check against 3D wall obstacles
         if self.obstacle_type == "wall":
             for obstacle in self.obstacles:
-                x_min, y_min, width, height = obstacle
-                if x_min <= x <= x_min + width and y_min <= y <= y_min + height:
+                x_min, y_min, z_min, width, height, depth = obstacle
+                if (x_min <= x <= x_min + width and
+                    y_min <= y <= y_min + height and
+                    z_min <= z <= z_min + depth):
                     return False
 
+        # For polygon types, fallback to 2D x-y containment (z ignored)
         elif self.obstacle_type == "polygon":
             from matplotlib.path import Path
             for polygon in self.obstacles:
-                path = Path(polygon)
+                path = Path([p[:2] for p in polygon["bottom"]])  # Only x-y projection
                 if path.contains_point((x, y)):
                     return False
-        
-        # Checking if nodes overlap - trying to have them as sparse as possible
+
+        # Check overlap with other agents (using full 3D Euclidean distance)
         for other_agent in self.agents:
             cx = other_agent.initial_node.x
             cy = other_agent.initial_node.y
-            if (x - cx) ** 2 + (x - cy) ** 2  <= self.agent_node_radius ** 2:
-                # if self.debug:
-                #     print(f"# ------- Agent at {x} {y} collides with {other_agent.id}")
+            cz = other_agent.initial_node.z
+            dist_sq = (x - cx)**2 + (y - cy)**2 + (z - cz)**2
+            if dist_sq <= self.agent_node_radius**2:
                 return False
 
         return True
-    
+   
+
+
+    def compute_linked_path_length(self):
+        def trace_linked_path(agent):
+            path = []
+            current = agent
+            while current:
+                if current.path:
+                    path = current.path + path  # prepend
+                current = current.linked_from
+            return path
+
+        best_path = None
+        best_length = float('inf')
+
+        # Try all agents that reached the goal (may be linked or not)
+        for agent in self.agents:
+            if agent.goal_reached and agent.path:
+                full_path = trace_linked_path(agent)
+                length = self.compute_path_length(full_path)
+
+                if length < best_length:
+                    best_length = length
+                    best_path = full_path
+
+        self.total_path_length = best_length
+        self.best_collaborative_path = best_path
     # This function check the cost based on the distance from the agent
     # to the line between initial node and goal node 
     def check_cost_of_agent(self, agent_node):
@@ -201,7 +238,8 @@ class RRTStar:
         for _ in range(30):
             x = random.uniform(0, self.map_size[0])
             y = random.uniform(0, self.map_size[1])
-            rand_node = Node("explore", agent.id, x, y)
+            z = random.uniform(0, self.map_size[2])
+            rand_node = Node("explore", agent.id, x, y, z)
    
             # Ensure sample is far from current tree 
             nearest = self.get_nearest_node(agent.nodes, rand_node)
@@ -210,7 +248,7 @@ class RRTStar:
                 return rand_node
 
         # fallback
-        return Node("explore", agent.id, random.uniform(0, self.map_size[0]), random.uniform(0, self.map_size[1]))
+        return Node("explore", agent.id, random.uniform(0, self.map_size[0]), random.uniform(0, self.map_size[1]),random.uniform(0, self.map_size[2]))
 
 
     # This function gets creates a random node anywhere on the map
@@ -233,9 +271,9 @@ class RRTStar:
     # This function get the nearest node to the random node
     # previously generated. 
     def get_nearest_node(self, tree, rand_node):
-        points = np.array([[node.x, node.y] for node in tree])
+        points = np.array([[node.x, node.y, node.z] for node in tree])
         tree_kdtree = scipy.spatial.KDTree(points)
-        _, index = tree_kdtree.query([rand_node.x, rand_node.y])
+        _, index = tree_kdtree.query([rand_node.x, rand_node.y, rand_node.z])
         return tree[index]
     
     def compute_path_length(self, path):
@@ -243,7 +281,8 @@ class RRTStar:
         for i in range(1, len(path)):
             dx = path[i][0] - path[i-1][0]
             dy = path[i][1] - path[i-1][1]
-            length += math.hypot(dx, dy)
+            dz = path[i][2] - path[i-1][2]
+            length += math.sqrt(dx**2 + dy**2 + dz**2)
         return length
     
     # Main Algorithm is here - from where we call functions.
@@ -300,9 +339,10 @@ class RRTStar:
             if any(a.goal_reached for a in self.agents) and len(self.agents) <= 2:
                  break
         
-        if agent.path:
+        
+        if self.agents[0].path:
             print("test")
-            draw_path(self.ax, agent.path, linestyle='--', color="red", label=f"Agent {agent.id}", live_plot=True)
+            draw_path(self.ax, self.agents[0].path, linestyle='--', color="red", label=f"Agent {self.agents[0].id}", live_plot=True)
 
         self.total_planning_time = time.time() - start_time
         self.agents[0].results["time"] = time.time() - self.agents[0].start_time
@@ -316,17 +356,25 @@ class RRTStar:
 
         
         draw_path(self.ax, self.agents[0].path, color='red', linestyle='--', label=f"Agent {self.agents[0].id} Linked Path", live_plot=True) 
- 
 
-   
-                
-    
     def steer(self, agent_id, from_node, to_node, step_size):
-        theta = math.atan2(to_node.y - from_node.y, to_node.x - from_node.x)
-        new_node = Node("node", agent_id, from_node.x + step_size * math.cos(theta),
-                        from_node.y + self.step_size * math.sin(theta))
+        dx = to_node.x - from_node.x
+        dy = to_node.y - from_node.y
+        dz = to_node.z - from_node.z
+
+        dist = math.sqrt(dx**2 + dy**2 + dz**2)
+        if dist == 0:
+            return from_node  # No movement
+
+        scale = step_size / dist
+        new_x = from_node.x + dx * scale
+        new_y = from_node.y + dy * scale
+        new_z = from_node.z + dz * scale
+
+        new_node = Node("node", agent_id, new_x, new_y, new_z)
         new_node.parent = from_node
         return new_node
+
     
     def ccw(self, A, B, C):
         return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
@@ -342,15 +390,25 @@ class RRTStar:
             if path.contains_point((x, y)):
                 return True
         return False
+
+   
     def is_collision_free(self, from_node, to_node):
         p1 = (from_node.x, from_node.y)
         p2 = (to_node.x, to_node.y)
 
         if self.obstacle_type == "wall":
-            for (x_min, y_min, width, height) in self.obstacles:
+            for (x_min, y_min, z_min, width, height, depth) in self.obstacles:
                 x_max = x_min + width
                 y_max = y_min + height
+                z_max = z_min + depth
 
+                # If the segment is outside the vertical bounds of the box, skip
+                min_z = min(from_node.z, to_node.z)
+                max_z = max(from_node.z, to_node.z)
+                if max_z < z_min or min_z > z_max:
+                    continue
+
+                # Project to 2D and check edges at multiple z levels for thoroughness (optional)
                 wall_edges = [
                     ((x_min, y_min), (x_max, y_min)),  # bottom
                     ((x_max, y_min), (x_max, y_max)),  # right
@@ -360,36 +418,34 @@ class RRTStar:
 
                 for (w1, w2) in wall_edges:
                     if self.segments_intersect(p1, p2, w1, w2):
-                        return False  # collision
+                        return False  # 2D projection collides with wall at overlapping Z
 
         elif self.obstacle_type == "polygon":
             from matplotlib.path import Path
             for polygon in self.obstacles:
-                path = Path(polygon)
-                # Sample the segment with intermediate points to check
+                path = Path([p[:2] for p in polygon["bottom"]])
                 if self.segment_intersects_polygon(p1, p2, path):
                     return False
 
         return True
     
-
     def reached_goal(self, node, goal):
-        return np.linalg.norm([node.x - goal.x, node.y - goal.y]) < self.goal_region_radius
-    
+        return np.linalg.norm([node.x - goal.x, node.y - goal.y, node.z - goal.z]) < self.goal_region_radius
+
     def generate_final_path(self, end_node, start_node=None):
         path = []
         node = end_node
         while node and (start_node is None or node != start_node):
-            path.append((node.x, node.y))
+            path.append((node.x, node.y, node.z))
             node = node.parent
         if start_node:
-            path.append((start_node.x, start_node.y))
+            path.append((start_node.x, start_node.y, start_node.z))
         return path[::-1]
     
     def find_near_nodes(self, tree, new_node, radius=10.0):
         near_nodes = []
         for node in tree:
-            dist = math.hypot(node.x - new_node.x, node.y - new_node.y)
+            dist = self.distance(node, new_node)
             if dist <= radius:
                 near_nodes.append(node)
         return near_nodes
@@ -412,7 +468,8 @@ class RRTStar:
         return new_node
     
     def distance(self, node1, node2):
-        return math.hypot(node1.x - node2.x, node1.y - node2.y)
+        return math.sqrt((node1.x - node2.x)**2 + (node1.y - node2.y)**2 + (node1.z - node2.z)**2)
+
 
     def rewire(self, tree, near_nodes, new_node):
         for node in near_nodes:
